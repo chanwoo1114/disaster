@@ -1,10 +1,14 @@
 export default function LocationSelector({
   locations,
-
+  selectedLocation,
+  onLocationChange,
+  inputStyle
 }) {
   return (
     <select
-      className="w-1/3 p-1 border border-gray-800 rounded"
+      value={selectedLocation}
+      className={inputStyle}
+      onChange={(event) => onLocationChange(event.target.value)}
     >
       <option value="">지역을 선택하세요</option>
       {locations.length > 0 && (

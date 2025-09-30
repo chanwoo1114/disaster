@@ -21,14 +21,23 @@ export default function ModalMap() {
 
   function handleLocationChange(location) {
     setSelectedLocation(location);
-    
+
+    if (location === "map-select") {
+      setMapCenter(SEOUL_CITY_HALL);
+      setCoordinates({x: SEOUL_CITY_HALL.x.toString(), y: SEOUL_CITY_HALL.y.toString()});
+    } else if (location) {
+      const currentLocation = locationsByDisaster[selectedDisaster] || [];
+      const locationData = currentLocation.find(loc => loc.name === location);
+
+      if (locationData) {
+        setMapCenter({x: locationData.x, y: locationData.y});
+        setCoordinates({x: locationData.x.toString(), y: locationData.y.toString()});
+      }
+    }
   }
 
   const currentLocation = selectedDisaster ? locationsByDisaster[selectedDisaster] || [] : [];
-
-  console.log(selectedDisaster)
-  console.log(selectedLocation)
-  console.log(currentLocation)
+  const testStyle = "border rounded border-gray-800 bg-gray-100 p-0.5"
 
   return (
     <div className="fixed inset-0 z-50">
@@ -47,11 +56,25 @@ export default function ModalMap() {
                 />
               ))}
             </div>
-            <p className="font-bold text-lg text-gray-950 mb-2">Disaster Area</p>
-            <div>
+            <p className="font-bold text-lg text-gray-950 mb-1">Disaster Area</p>
+            <div className="w-1/3 p-1 flex flex-col gap-1">
               <LocationSelector
                 locations={currentLocation}
+                selectedLocation={selectedLocation}
+                onLocationChange={handleLocationChange}
+                inputStyle={testStyle}
               />
+                <input
+                  className={testStyle + "text-sm"}
+                  value={coordinates.x}
+                />
+                <input
+                  className={testStyle + "text-sm"}
+                  value={coordinates.y}
+                />
+            </div>
+            <div className="w=2/3">
+
             </div>
           </div>
         </div>
