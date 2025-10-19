@@ -4,6 +4,10 @@ import { useNavigate } from "react-router-dom";
 export default function Home () {
   const navigate = useNavigate();
 
+  function handleStartClick() {
+    navigate("/map", {state: {openModal: true}})
+  }
+
   return (
     <div className="relative h-screen">
       {/* 비디오 배경 */}
@@ -24,7 +28,7 @@ export default function Home () {
         </h1>
 
         <button
-          onClick={() => navigate('/map')}
+          onClick={handleStartClick}
           className="px-8 py-3 bg-white text-gray-900 text-lg font-medium rounded-lg shadow-lg hover:bg-gray-100 transition-colors duration-200"
         >
           시작하기
