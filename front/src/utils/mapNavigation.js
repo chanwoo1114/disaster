@@ -7,17 +7,69 @@ export const transformCoordinates = (x, y) => {
   );
 };
 
-// 좌표 이동 (줌을 null로 전달하면 현재 줌 유지)
-export const moveMap = (mapInstance, x, y, zoom = 12) => {
-  if (mapInstance?.getView) {
-    const transformed = transformCoordinates(x, y);
-    mapInstance.getView().setCenter(transformed);
+// Linear Interpolation (lerp) 함수
+function lerp(start, end, t) {
+  return start * (1 - t) + end * t;
+}
 
-    // zoom이 명시적으로 전달되었을 때만 줌 설정
+// Easing 함수 (easeInOutCubic)
+function easeInOutCubic(t) {
+  return t < 0.5
+    ? 4 * t * t * t
+    : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+// 부드러운 애니메이션으로 지도 이동
+export const moveMap = (mapInstance, x, y, zoom = 12, animate = true) => {
+  if (!mapInstance?.getView) return;
+
+  const transformed = transformCoordinates(x, y);
+  const view = mapInstance.getView();
+
+  if (!animate) {
+    // 애니메이션 없이 즉시 이동
+    view.setCenter(transformed);
     if (zoom !== null && zoom !== undefined) {
-      mapInstance.getView().setZoom(zoom);
+      view.setZoom(zoom);
+    }
+    return;
+  }
+
+  // 애니메이션으로 이동
+  const startCenter = view.getCenter();
+  const startZoom = view.getZoom();
+  const endCenter = transformed;
+  const endZoom = zoom !== null && zoom !== undefined ? zoom : startZoom;
+
+  const duration = 600; // 0.6초
+  const startTime = Date.now();
+
+  function animate() {
+    const elapsed = Date.now() - startTime;
+    let progress = Math.min(elapsed / duration, 1); // 0 ~ 1
+
+    // easing 함수 적용
+    const t = easeInOutCubic(progress);
+
+    // 중심 좌표 보간
+    const currentCenter = [
+      lerp(startCenter[0], endCenter[0], t),
+      lerp(startCenter[1], endCenter[1], t)
+    ];
+
+    // 줌 레벨 보간
+    const currentZoom = lerp(startZoom, endZoom, t);
+
+    view.setCenter(currentCenter);
+    view.setZoom(currentZoom);
+
+    // 애니메이션 계속 진행
+    if (progress < 1) {
+      requestAnimationFrame(animate);
     }
   }
+
+  animate();
 };
 
 // 마커 생성
