@@ -1,12 +1,11 @@
 from pydantic import BaseModel
 
 class PersonPosition(BaseModel):
-    time: str
     person_id: str
     direction: float
-    lot: str
-    lat: str
-    speed: int
+    lot: float
+    lat: float
+    speed: str
 
 class PersonDetails(BaseModel):
     person_id: str
