@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from api import upload
+from api import person
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -17,3 +18,4 @@ app.add_middleware(
 )
 
 app.include_router(upload.router, prefix="/api", tags=["zip"])
+app.include_router(person.router, prefix="/api", tags=["person"])
