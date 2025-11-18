@@ -69,6 +69,7 @@ export default function ModalMap() {
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="rounded bg-white px-4 py-2">
             <p className="font-bold text-lg text-gray-950 mb-4">Disaster Type</p>
+            <p>dis</p>
             <div className="flex items-center gap-6 mb-4">
               {disasterTypes.map(({ key, label, img}) => (
                 <DisasterType
