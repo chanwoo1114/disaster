@@ -21,4 +21,4 @@ app.add_middleware(
 
 app.include_router(upload.router, prefix="/api", tags=["업로드"])
 app.include_router(person.router, prefix="/api", tags=["보헹"])
-app.include_router(person.router, prefix="/api", tags=["공간정보"])
+app.include_router(geometry.router, prefix="/api", tags=["공간정보"])
