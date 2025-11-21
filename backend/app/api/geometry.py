@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from ..schemas.geometry import *
-from ..services.disaster_geometry_service import DisasterGeometryService
+from ..services.disaster_geometry import DisasterGeometryService
 
 router = APIRouter(prefix="/geometry")
 
