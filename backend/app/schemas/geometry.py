@@ -4,7 +4,7 @@ from typing import Optional, List, Literal, Dict, Any
 class BaseRequest(BaseModel):
     lng: float = Field(..., ge=-180, le=180, description="X 좌표 (경도)")
     lat: float = Field(..., ge=-90, le=90, description="Y 좌표 (위도)")
-    disaster_type: Literal["방사능", "화학", "풍수해", "해일", "기타"] = Field(..., description="재난 종류")
+    disaster_type: Literal["nuclear", "chemistry", "storm", "flood", "complex"] = Field(..., description="재난 종류")
 
 
 class NuclearBufferRequest(BaseModel):
@@ -57,17 +57,17 @@ class DisasterBufferRequest(BaseModel):
         analysis_distance = values.analysis_distance
 
         max_disaster_distance = {
-            "화학": 10,
-            "풍수해": 2,
-            "해일": 2,
-            "기타": 10
+            "chemistry": 10,
+            "flood": 2,
+            "storm": 2,
+            "complex": 10
         }
 
         max_analysis_distance = {
-            "화학": 15,
-            "풍수해": 3,
-            "해일": 3,
-            "기타": 15
+            "chemistry": 15,
+            "flood": 3,
+            "storm": 3,
+            "complex": 15
         }
 
         # disaster_distance 범위 검증
