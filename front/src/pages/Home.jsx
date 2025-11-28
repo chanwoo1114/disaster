@@ -1,11 +1,11 @@
 import BackgroundVideo from "../assets/videos/video.mp4";
-import { useNavigate } from "react-router-dom";
+import {useNavigate} from "react-router-dom";
 
-export default function Home () {
+export default function Home() {
   const navigate = useNavigate();
 
   function handleStartClick() {
-    navigate("/map", {state: {openModal: true}})
+    navigate("/register", {state: {openModal: true}})
   }
 
   return (
@@ -17,7 +17,7 @@ export default function Home () {
         muted
         className="absolute inset-0 w-full h-full object-cover"
       >
-        <source src={BackgroundVideo} type='video/mp4' />
+        <source src={BackgroundVideo} type='video/mp4'/>
       </video>
 
       <div className="absolute inset-0 bg-black bg-opacity-20"></div>

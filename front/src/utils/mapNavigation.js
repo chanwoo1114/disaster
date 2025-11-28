@@ -1,5 +1,10 @@
 // 좌표 변환 유틸
 export const transformCoordinates = (x, y) => {
+  if (!window.ol?.proj) {
+    console.error('OpenLayers가 로드되지 않았습니다');
+    return [x, y];
+  }
+
   return window.ol.proj.transform(
     [x, y],
     'EPSG:4326',
@@ -20,14 +25,29 @@ function easeInOutCubic(t) {
 }
 
 // 부드러운 애니메이션으로 지도 이동
-export const moveMap = (mapInstance, x, y, zoom = 12, animate = true) => {
-  if (!mapInstance?.getView) return;
+export const moveMap = (mapInstance, x, y, zoom = 12, animate = true, duration = 600) => {
+  if (!mapInstance?.getView) {
+    console.error('유효하지 않은 지도 인스턴스입니다');
+    return;
+  }
+
+  // 좌표 유효성 검사
+  if (typeof x !== 'number' || typeof y !== 'number') {
+    console.error('유효하지 않은 좌표입니다:', {x, y});
+    return;
+  }
+
+  // 경도/위도 범위 검사
+  if (x < -180 || x > 180 || y < -90 || y > 90) {
+    console.error('좌표 범위를 벗어났습니다:', {x, y});
+    return;
+  }
 
   const transformed = transformCoordinates(x, y);
   const view = mapInstance.getView();
 
+  // 애니메이션 없이 즉시 이동
   if (!animate) {
-    // 애니메이션 없이 즉시 이동
     view.setCenter(transformed);
     if (zoom !== null && zoom !== undefined) {
       view.setZoom(zoom);
@@ -41,7 +61,6 @@ export const moveMap = (mapInstance, x, y, zoom = 12, animate = true) => {
   const endCenter = transformed;
   const endZoom = zoom !== null && zoom !== undefined ? zoom : startZoom;
 
-  const duration = 600; // 0.6초
   const startTime = Date.now();
 
   function animate() {

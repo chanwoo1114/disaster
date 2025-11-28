@@ -1,4 +1,4 @@
-export const addMapClickListener = (mapInstance, callback) =>{
+export const addMapClickListener = (mapInstance, callback) => {
   if (!mapInstance) return null;
 
   const clickHandler = (event) => {

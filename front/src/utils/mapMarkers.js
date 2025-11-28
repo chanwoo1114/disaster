@@ -1,4 +1,4 @@
-import { transformCoordinates } from './mapNavigation.js';
+import {transformCoordinates} from './mapNavigation.js';
 
 // 마커 생성
 export const addMarker = (mapInstance, x, y, options = {}) => {

@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, Query, Path
 from typing import Annotated
-from ..schemas.person import PersonPosition, PersonDetails
+from ..schemas.position import PersonPosition, PersonDetails
 import pandas as pd
 
-router = APIRouter(prefix="/person")
+router = APIRouter(prefix="/position")
 
 @router.post("/{directory}/{time}")
 async def person_position(

@@ -1,11 +1,11 @@
-import { useEffect, useRef } from "react";
-import {addMarker, removeMarker, moveMap} from "../utils/mapNavigation.js";
+import {useEffect, useRef} from "react";
+import {addMarker, moveMap, removeMarker} from "../utils/mapNavigation.js";
 import {initializeMap} from "../utils/mapInit.js";
 import {addMapClickListener} from "../utils/mapInteraction.js";
 
-const SEOUL_CITY_HALL = { x: 126.9780, y: 37.5665 };
+const SEOUL_CITY_HALL = {x: 126.9780, y: 37.5665};
 
-export default function MiniMap({ location, center, onMapClick }) {
+export default function MiniMap({location, center, onMapClick}) {
   const mapInstance = useRef(null);
   const markerLayer = useRef(null);
   const clickListenerRemover = useRef(null);
