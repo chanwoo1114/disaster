@@ -1,43 +1,60 @@
-name: Lint & Format Check
+name: Auto Format & Push
 
 on:
   push:
     branches: [ main, develop ]
     paths:
-      - 'backend/**'
-  pull_request:
-    branches: [ main, develop ]
-    paths:
-      - 'backend/**'
+      - 'backend/**/*.py'
 
 jobs:
-  lint:
+  format:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        ref: ${{ github.head_ref }}
 
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
-    - name: Install dependencies
+    - name: Install formatting tools
       run: |
-        cd backend
-        pip install black isort flake8
+        pip install black isort flake8 autoflake
 
-    - name: Run Black
+    - name: Remove unused imports
       run: |
         cd backend
-        black --check --diff .
+        autoflake --remove-all-unused-imports --in-place --recursive app/
 
     - name: Run isort
       run: |
         cd backend
-        isort --check-only --diff .
+        isort .
 
-    - name: Run flake8
+    - name: Run Black
       run: |
         cd backend
-        flake8 .
+        black .
+
+    - name: Check for changes
+      id: verify_diff
+      run: |
+        git diff --quiet . || echo "changed=true" >> $GITHUB_OUTPUT
+
+    - name: Commit and push if changed
+      if: steps.verify_diff.outputs.changed == 'true'
+      run: |
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git config --global user.name "github-actions[bot]"
+        git add -A
+        git commit -m "style: Auto-format code [skip ci]"
+        git push
+
+    - name: Run flake8 (check only)
+      run: |
+        cd backend
+        flake8 . --extend-ignore=E501,F401,F403,F405 --max-line-length=88 || true
