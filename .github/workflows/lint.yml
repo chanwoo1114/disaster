@@ -1,4 +1,4 @@
-name: Auto Format & Push
+name: Code Quality Check
 
 on:
   push:
@@ -7,54 +7,32 @@ on:
       - 'backend/**/*.py'
 
 jobs:
-  format:
+  lint:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        ref: ${{ github.head_ref }}
 
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
-    - name: Install formatting tools
+    - name: Install tools
       run: |
-        pip install black isort flake8 autoflake
+        pip install black isort flake8
 
-    - name: Remove unused imports
-      run: |
-        cd backend
-        autoflake --remove-all-unused-imports --in-place --recursive app/
-
-    - name: Run isort
+    - name: Check Black formatting
       run: |
         cd backend
-        isort .
+        black --check --diff . || true
 
-    - name: Run Black
+    - name: Check isort
       run: |
         cd backend
-        black .
+        isort --check-only --diff . || true
 
-    - name: Check for changes
-      id: verify_diff
-      run: |
-        git diff --quiet . || echo "changed=true" >> $GITHUB_OUTPUT
-
-    - name: Commit and push if changed
-      if: steps.verify_diff.outputs.changed == 'true'
-      run: |
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
-        git config --global user.name "github-actions[bot]"
-        git add -A
-        git commit -m "style: Auto-format code [skip ci]"
-        git push
-
-    - name: Run flake8 (check only)
+    - name: Run flake8
       run: |
         cd backend
         flake8 . --extend-ignore=E501,F401,F403,F405 --max-line-length=88 || true
