@@ -1,16 +1,22 @@
-from fastapi import APIRouter, HTTPException, Query, Path
-from typing import Annotated
-from ..schemas.position import PersonPosition, PersonDetails
-import pandas as pd
+from fastapi import APIRouter, HTTPException
+
+from ..schemas.position import RequestPersonPosition
+from ..services.data_loader import PositionService
 
 router = APIRouter(prefix="/position")
 
+
 @router.post("/{directory}/{time}")
-async def person_position(
-    directory: Annotated[str, Path(title="디렉토리", description="디렉토리")],
-    time: Annotated[str, Path(title="시간", description="시간")],
-    person: PersonPosition
-):
-    t = pd.read_csv(f'{directory}/Person_Position_1300.txt', sep=r'\s+', encoding="CP949")
-    print(t)
-    return {"hello": f"{directory}, {time}"}
+async def person_position(request: RequestPersonPosition):
+    try:
+        data = PositionService.get_position_at_time(
+            request.directory, request.time, request.disaster_type
+        )
+        return data
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

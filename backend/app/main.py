@@ -1,16 +1,11 @@
 from fastapi import FastAPI
-from .api import upload
-from .api import position
-from .api import geometry
-from .api import road
 from fastapi.middleware.cors import CORSMiddleware
+
+from .api import geometry, position, road, upload
 
 app = FastAPI()
 
-origins = [
-    "http://39.119.84.115:8000",
-    '*'
-]
+origins = ["http://39.119.84.115:8000", "*"]
 
 app.add_middleware(
     CORSMiddleware,

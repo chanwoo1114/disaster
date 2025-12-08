@@ -1,18 +1,18 @@
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
 
 class BasePosition(BaseModel):
-    disaster_type: str
+    directory: str = Field(..., description="디렉토리")
+    disaster_type: Literal["nuclear", "chemistry", "storm", "flood", "complex"] = Field(
+        ..., description="재난 종류"
+    )
 
-class VehiclePosition(BaseModel):
-    veh_id: str
 
-class PersonPosition(BaseModel):
-    time: str
-    person_id: str
-    direction: float
-    lot: float
-    lat: float
-    speed: str
+class RequestPersonPosition(BasePosition):
+    time: str = Field(..., description="시간")
+
 
 class PersonDetails(BaseModel):
     person_id: str
