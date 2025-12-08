@@ -19,3 +19,7 @@ class PersonDetails(BaseModel):
     house_id: str
     age: str
     sex: str
+
+
+class Test(BaseModel):
+    test: str = "tttttttttttt11111111111111111111111122222222"
