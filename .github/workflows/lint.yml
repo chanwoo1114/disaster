@@ -1,0 +1,43 @@
+name: Lint & Format Check
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'backend/**'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'backend/**'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        cd backend
+        pip install black isort flake8
+
+    - name: Run Black
+      run: |
+        cd backend
+        black --check --diff .
+
+    - name: Run isort
+      run: |
+        cd backend
+        isort --check-only --diff .
+
+    - name: Run flake8
+      run: |
+        cd backend
+        flake8 .
