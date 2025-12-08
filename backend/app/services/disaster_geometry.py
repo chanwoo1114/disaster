@@ -1,27 +1,24 @@
-from shapely.geometry import Point, mapping, Polygon
-from shapely.geometry.base import BaseGeometry
-from shapely.ops import transform, unary_union
-from typing import Dict, Tuple, List, Optional
-from pyproj import Transformer
-import json
 import math
+from typing import Dict, List, Tuple
+
+from pyproj import Transformer
+from shapely.geometry import Point, Polygon, mapping
+from shapely.geometry.base import BaseGeometry
+from shapely.ops import transform
+
 
 class DisasterGeometryService:
-    '''Geometry 관련 로직 처리'''
+    """Geometry 관련 로직 처리"""
 
     # Geometry 좌표계 변환 관련
     @staticmethod
     def _create_transform() -> Tuple:
         project_to_meters = Transformer.from_crs(
-            "EPSG:4326",
-            "EPSG:5179",
-            always_xy=True
+            "EPSG:4326", "EPSG:5179", always_xy=True
         ).transform
 
         project_to_wgs84 = Transformer.from_crs(
-            "EPSG:5179",
-            "EPSG:4326",
-            always_xy=True
+            "EPSG:5179", "EPSG:4326", always_xy=True
         ).transform
 
         return project_to_meters, project_to_wgs84
@@ -43,10 +40,7 @@ class DisasterGeometryService:
     # 쐐기 형태 생성
     @staticmethod
     def _create_wedge(
-        center_point: Point,
-        radius_meters: float,
-        start_angle: float,
-        end_angle: float
+        center_point: Point, radius_meters: float, start_angle: float, end_angle: float
     ) -> Polygon:
         cx, cy = center_point.x, center_point.y
 
@@ -56,9 +50,9 @@ class DisasterGeometryService:
             rad = math.radians(angle)
             x = cx + radius_meters * math.sin(rad)
             y = cy + radius_meters * math.cos(rad)
-            coords.append((x,y))
+            coords.append((x, y))
 
-        coords.append((cx,cy))
+        coords.append((cx, cy))
 
         return Polygon(coords)
 
@@ -68,12 +62,14 @@ class DisasterGeometryService:
         center_point: Point,
         base_radius_meters: float,
         new_radius_meters: float,
-        sector_indices: List[int]
+        sector_indices: List[int],
     ) -> List[Polygon]:
         wedges = []
         base_angle_per_wedge = 360 / 16
 
-        adjusted_angle_per_wedge = (base_radius_meters / new_radius_meters) * base_angle_per_wedge
+        adjusted_angle_per_wedge = (
+            base_radius_meters / new_radius_meters
+        ) * base_angle_per_wedge
 
         for i in sector_indices:
             center_angle = i * base_angle_per_wedge
@@ -82,10 +78,7 @@ class DisasterGeometryService:
             end_angle = center_angle + (adjusted_angle_per_wedge / 2)
 
             wedge = DisasterGeometryService._create_wedge(
-                center_point,
-                new_radius_meters,
-                start_angle,
-                end_angle
+                center_point, new_radius_meters, start_angle, end_angle
             )
             wedges.append(wedge)
 
@@ -93,17 +86,16 @@ class DisasterGeometryService:
 
     # 16방위 쐐기 생성
     @staticmethod
-    def _create_16_wedges(
-        center_point: Point,
-        radius_meters: float
-    ) -> List[Polygon]:
+    def _create_16_wedges(center_point: Point, radius_meters: float) -> List[Polygon]:
         wedges = []
         angle_per_wedge = 360 / 16
 
         for i in range(16):
             start_angle = i * angle_per_wedge - (angle_per_wedge / 2)
             end_angle = start_angle + angle_per_wedge
-            wedge = DisasterGeometryService._create_wedge(center_point, radius_meters, start_angle, end_angle)
+            wedge = DisasterGeometryService._create_wedge(
+                center_point, radius_meters, start_angle, end_angle
+            )
             wedges.append(wedge)
 
         return wedges
@@ -112,11 +104,7 @@ class DisasterGeometryService:
     @staticmethod
     def _get_opposite_sectors(wind_direction: int) -> List[int]:
         opposite_center = ((wind_direction - 1) + 8) % 16
-        return [
-            (opposite_center - 1) % 16,
-            opposite_center,
-            (opposite_center + 1) % 16
-        ]
+        return [(opposite_center - 1) % 16, opposite_center, (opposite_center + 1) % 16]
 
     # Geometry 리스트를 EPSG:4326 GeoJSON dict 리스트로 변환
     @staticmethod
@@ -145,28 +133,32 @@ class DisasterGeometryService:
         analysis_buffer = point_meters.buffer(analysis_distance * 1000)
 
         # 4326 변환
-        disaster_geometry = DisasterGeometryService._transform_from_meters(disaster_buffer)
-        analysis_geometry = DisasterGeometryService._transform_from_meters(analysis_buffer)
+        disaster_geometry = DisasterGeometryService._transform_from_meters(
+            disaster_buffer
+        )
+        analysis_geometry = DisasterGeometryService._transform_from_meters(
+            analysis_buffer
+        )
 
         return {
             "centroid": mapping(point),
             "disaster_geometry": mapping(disaster_geometry),
-            "analysis_geometry": mapping(analysis_geometry)
+            "analysis_geometry": mapping(analysis_geometry),
         }
 
     # 방사능 재난 범위 생성
     @staticmethod
     def create_nuclear_buffer(
-            lng: float,
-            lat: float,
-            paz_distance: float,
-            upz_distance: float,
-            upz_wind_distance: float,
-            wind_direction: int,
-            shadow_distance: float,
-            analysis_distance: float
+        lng: float,
+        lat: float,
+        paz_distance: float,
+        upz_distance: float,
+        upz_wind_distance: float,
+        wind_direction: int,
+        shadow_distance: float,
+        analysis_distance: float,
     ) -> Dict[str, str | List[str] | None]:
-        '''방사능 피해 범위 생성'''
+        """방사능 피해 범위 생성"""
         point = Point(lng, lat)
         point_meters = DisasterGeometryService._transform_to_meters(point)
 
@@ -177,27 +169,34 @@ class DisasterGeometryService:
 
         # UPZ 권역: 항상 upz_distance로 16방위 생성
         upz_wedges_meters = DisasterGeometryService._create_16_wedges(
-            point_meters,
-            upz_distance * 1000
+            point_meters, upz_distance * 1000
         )
 
         upz_wind_wedges_meters = None
         if upz_distance != upz_wind_distance:
-            opposite_sectors = DisasterGeometryService._get_opposite_sectors(wind_direction)
+            opposite_sectors = DisasterGeometryService._get_opposite_sectors(
+                wind_direction
+            )
 
-            upz_wind_wedges_meters = DisasterGeometryService._create_specific_wedges_with_same_width(
-                point_meters,
-                upz_distance * 1000,
-                upz_wind_distance * 1000,
-                opposite_sectors
+            upz_wind_wedges_meters = (
+                DisasterGeometryService._create_specific_wedges_with_same_width(
+                    point_meters,
+                    upz_distance * 1000,
+                    upz_wind_distance * 1000,
+                    opposite_sectors,
+                )
             )
 
         # 4326 변환
         paz_geometry = DisasterGeometryService._transform_from_meters(paz_buffer)
         shadow_geometry = DisasterGeometryService._transform_from_meters(shadow_buffer)
-        analysis_geometry = DisasterGeometryService._transform_from_meters(analysis_buffer)
+        analysis_geometry = DisasterGeometryService._transform_from_meters(
+            analysis_buffer
+        )
 
-        upz_geometry_list = DisasterGeometryService._geometries_to_dict_list(upz_wedges_meters)
+        upz_geometry_list = DisasterGeometryService._geometries_to_dict_list(
+            upz_wedges_meters
+        )
 
         upz_wind_geometry_list = None
         if upz_wind_wedges_meters:
@@ -211,5 +210,5 @@ class DisasterGeometryService:
             "upz_geometry": upz_geometry_list,
             "upz_wind_geometry": upz_wind_geometry_list,
             "shadow_geometry": mapping(shadow_geometry),
-            "analysis_geometry": mapping(analysis_geometry)
+            "analysis_geometry": mapping(analysis_geometry),
         }
