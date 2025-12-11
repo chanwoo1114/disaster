@@ -15,8 +15,8 @@ class NuclearBufferRequest(BaseModel):
     disaster_data: BaseRequest
     paz_distance: int = Field(..., ge=0, le=5, description="PAZ 대피 거리")
     upz_distance: int = Field(..., le=30, description="UPZ 대피 거리")
-    upz_wind_distance: int = Field(..., description="UPZ 풍향 대피 거리")
-    wind_direction: int = Field(..., ge=1, le=16, description="풍향 방향")
+    upz_wind_distance: Optional[int] = Field(None, description="UPZ 풍향 대피 거리")
+    wind_direction: Optional[int] = Field(None, ge=1, le=16, description="풍향 방향")
     shadow_distance: int = Field(..., le=45, description="그림자 권역 거리")
     analysis_distance: int = Field(..., le=50, description="분석 권역 거리")
 

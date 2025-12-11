@@ -11,7 +11,6 @@ from ..services.disaster_geometry import DisasterGeometryService
 router = APIRouter(prefix="/geometry")
 
 
-# 방사능 범위 제공 API
 @router.post("/nuclear-buffer", response_model=NuclearBufferResponse)
 async def create_nuclear_buffer(request: NuclearBufferRequest):
     try:
