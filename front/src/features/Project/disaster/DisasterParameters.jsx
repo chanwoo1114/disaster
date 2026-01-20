@@ -1,6 +1,5 @@
 import RadiusInput from "./RadiusInput.jsx";
-import NuclearWindSettings from "../Nuclear/NuclearWindSettings.jsx";
-import { SectionTitle } from "../common/SectionTitle.jsx"
+import { SectionTitle } from "../../../components/common/SectionTitle.jsx"
 
 export default function DisasterParameters({
   selectedDisaster,
@@ -38,15 +37,13 @@ export default function DisasterParameters({
     {key: 'radius2', label: '분석 권역', defaultValue: "20"}
   ];
 
-  const isNuclear = selectedDisaster === 'nuclear';
-
   return (
-    <div className="mt-4">
-      <SectionTitle className="mb-0.5">
+    <div>
+      <SectionTitle>
         대피범위
       </SectionTitle>
 
-      <div className="grid grid-cols-2 gap-3 mb-4">
+      <div className="grid grid-cols-2 gap-4">
         {fields.map((field) => (
           <RadiusInput
             key={field.key}
@@ -58,24 +55,6 @@ export default function DisasterParameters({
           />
         ))}
       </div>
-
-      {isNuclear && (
-        <NuclearWindSettings
-          windDirection={disasterParams.windDirection}
-          windSpeed={disasterParams.windSpeed || ''}
-          pazRadius={disasterParams.radius1}
-          upzRadius={disasterParams.radius2}
-          onWindDirectionChange={(value) => {
-            console.log('DisasterParameters - windDirection 변경:', value);
-            onParamChange('windDirection', value);
-          }}
-          onWindSpeedChange={(value) => {
-            console.log('DisasterParameters - windSpeed 변경:', value);
-            onParamChange('windSpeed', value);
-          }}
-          inputStyle={inputStyle}
-        />
-      )}
     </div>
   );
 }
