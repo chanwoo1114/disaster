@@ -10,7 +10,7 @@ from ..schemas.position import (
 )
 from ..services.position import PositionService
 
-router = APIRouter(prefix="/position", tags=["Position"])
+router = APIRouter(prefix="/position")
 
 PositionItem = Union[MesoPosition, MicroPosition, WalkingPosition]
 

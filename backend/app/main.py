@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import geometry, position, road, upload
+from app.router import geometry, position, project, road, upload
 
 app = FastAPI()
 
@@ -15,7 +15,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(upload.router, prefix="/api", tags=["업로드"])
-app.include_router(position.router, prefix="/api", tags=["위치표출"])
-app.include_router(geometry.router, prefix="/api", tags=["공간정보"])
-app.include_router(road.router, prefix="/api", tags=["링크"])
+app.include_router(upload.router, prefix="", tags=["업로드"])
+app.include_router(position.router, prefix="", tags=["위치표출"])
+app.include_router(geometry.router, prefix="", tags=["공간정보"])
+app.include_router(road.router, prefix="", tags=["링크"])
+app.include_router(project.router, prefix="", tags=["프로젝트"])
