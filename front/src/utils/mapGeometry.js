@@ -110,7 +110,15 @@ export function addGeometries(map, responseData, isNuclear) {
 
     // 재난 구분
     if (isNuclear) {
-      console.log('test')
+      addPolygonGeometry(map, responseData.paz_geometry, {
+        fillColor: 'rgba(255, 0, 0, 0.5)',
+        zIndex: 200
+      })
+      addPolygonGeometry(map, responseData.upz_wind_geometry, {
+        fillColor: 'rgba(255, 0, 0, 0.5)',
+        zIndex: 200
+      })
+      console.log(responseData)
     } else {
       addPolygonGeometry(map, responseData.disaster_geometry, {
         fillColor: 'rgba(255, 0, 0, 0.5)',
@@ -123,8 +131,9 @@ export function addGeometries(map, responseData, isNuclear) {
     }
 
 
+
+
   } catch (error) {
     console.error('Geometry 레이어 추가 실패:', error);
   }
-
 }

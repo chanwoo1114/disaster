@@ -1,4 +1,5 @@
 import React from 'react';
+import { SectionSubTitle } from "../../../../components/common/SectionSubTitle.jsx";
 
 /**
  * 풍향 선택 및 PAZ/UPZ 시각화 컴포넌트
@@ -25,10 +26,9 @@ export default function WindDirectionSelector({ value, onChange, windSpeed, pazR
 
   return (
     <div className="flex flex-col gap-3 h-auto">
-      <label className="text-sm text-gray-700 font-medium">
+      <SectionSubTitle>
         풍향 선택 (1~16)
-      </label>
-
+      </SectionSubTitle>
       <div className="flex gap-4 flex-wrap sm:flex-nowrap">
         <div className="flex-1 min-w-[300px]">
           <WindDirectionGrid

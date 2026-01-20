@@ -5,7 +5,7 @@ export default function Home() {
   const navigate = useNavigate();
 
   function handleStartClick() {
-    navigate("/register", {state: {openModal: true}})
+    navigate("/register")
   }
 
   return (

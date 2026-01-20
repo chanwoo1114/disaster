@@ -1,9 +1,9 @@
 import {useState} from 'react';
-import {postDisasterGeometry, postNuclearGeometry} from "../services/api.js";
-import {moveMap} from "../utils/mapNavigation.js";
+import {postDisasterGeometry, postDisasterLinkGeometry, postNuclearGeometry} from "../../../services/api.js";
+import {moveMap} from "../../../utils/mapNavigation.js";
 
-import {createDisasterPayload, createNuclearPayload, isNuclearDisaster} from "../utils/disasterPayload.js";
-import {addGeometries} from "../utils/mapGeometry.js"
+import {createDisasterPayload, createNuclearPayload, isNuclearDisaster} from "../../../utils/disasterPayload.js";
+import {addGeometries} from "../../../utils/mapGeometry.js"
 
 
 export function useDisasterSubmit(mapInstance) {
@@ -34,8 +34,9 @@ export function useDisasterSubmit(mapInstance) {
         ? await postNuclearGeometry(payload)
         : await postDisasterGeometry(payload);
 
-      // 링크 API 호출
+      const linkResponse = postDisasterLinkGeometry
 
+      // 링크 API 호출
       console.log('✅ 서버 응답:', disasterResponse);
 
       moveMap(mapInstance.current, parseFloat(data.coordinates.x), parseFloat(data.coordinates.y), 14, true, 600);
