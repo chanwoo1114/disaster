@@ -1,7 +1,12 @@
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, File, Response, UploadFile, status
 
 from ..schemas.common import ApiResponse
-from ..schemas.project import ProjectQueryParams, Projects, ProjectsApiResponse
+from ..schemas.project import (
+    ProjectCreate,
+    ProjectQueryParams,
+    ProjectsListItemApiResponse,
+    ProjectsListItems,
+)
 from ..services.project import ProjectStorage
 
 router = APIRouter(prefix="/project")
@@ -9,23 +14,30 @@ router = APIRouter(prefix="/project")
 storage = ProjectStorage()
 
 
-@router.get("", response_model=ProjectsApiResponse, summary="프로젝트 조회")
+@router.get("", response_model=ProjectsListItemApiResponse, summary="프로젝트 조회")
 async def get_projects(response: Response, params: ProjectQueryParams = Depends()):
     """프로젝트 목록 조회(최신순)"""
 
     result = storage.load_project_list(params.skip, params.limit)
 
-    items = [Projects(**p) for p in result]
+    items = [ProjectsListItems(**p) for p in result]
 
     response.status_code = status.HTTP_200_OK
 
-    return ProjectsApiResponse(
+    return ProjectsListItemApiResponse(
         success=True, message="프로젝트 목록 조회 성공", data=items
     )
 
 
 @router.post("", summary="프로젝트 생성")
-async def create_project():
+async def create_project(
+    response: Response,
+    project_data: ProjectCreate = Depends(),
+    file: UploadFile = File(..., description="Zip 파일 업로드"),
+):
     """프로젝트 생성"""
-    for i in range(10000):
-        t = storage.save_project({"project_name": f"test_{i}"})
+    try:
+        print("test")
+
+    except Exception as e:
+        print(e)
