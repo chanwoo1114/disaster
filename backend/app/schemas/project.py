@@ -1,9 +1,8 @@
-from typing import Annotated, List, Literal, Optional
+from typing import List, Literal, Optional
 
-from fastapi import Form
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field
 
-from ..validator.project import ProjectValidators
+from ..validators.project_validator import ProjectValidators
 from .common import ApiResponse
 
 
@@ -14,17 +13,26 @@ class ProjectQueryParams(BaseModel):
     limit: int = Field(12, ge=1, le=50, description="가져올 개수")
 
 
-class ProjectsListItems(BaseModel):
-    """프로젝트 목록 조회"""
+class ProjectItems(BaseModel):
+    """프로젝트 상세 조회 응답"""
 
     id: int = Field(..., description="고유ID")
     project_name: str = Field(..., description="프로젝트 이름")
+    project_description: Optional[str] = Field(None, description="프로젝트 설명")
     disaster_type: str = Field(..., description="재난 유형")
+    lng: float = Field(..., description="X 좌표 (경도)")
+    lat: float = Field(..., description="Y 좌표 (위도)")
+    radius1: float = Field(..., description="반경1")
+    radius2: float = Field(..., description="반경2")
+    radius3: Optional[float] = Field(None, description="반경3")
+    radius4: Optional[float] = Field(None, description="반경4")
+    wind_direction: Optional[int] = Field(None, description="바람 방향")
+    wind_speed: Optional[float] = Field(None, description="바람 속도")
     created_at: str = Field(..., description="생성된 날짜")
 
 
-class ProjectsListItemApiResponse(ApiResponse[List[ProjectsListItems]]):
-    """프로젝트 목록 조회 응답 예시"""
+class ProjectsItemApiResponse(ApiResponse[List[ProjectItems]]):
+    """프로젝트 목록 조회 응답"""
 
     class Config:
         json_schema_extra = {
@@ -36,13 +44,25 @@ class ProjectsListItemApiResponse(ApiResponse[List[ProjectsListItems]]):
                         "id": 1,
                         "project_name": "테스트1",
                         "disaster_type": "nuclear",
+                        "lng": 129.0,
+                        "lat": 35.0,
+                        "radius1": 3,
+                        "radius2": 20,
+                        "radius3": 30,
+                        "radius4": 40,
+                        "wind_direction": 1,
+                        "wind_speed": 10,
                         "created_at": "2026-01-07 16:52:00",
                     },
                     {
                         "id": 2,
                         "project_name": "테스트2",
                         "disaster_type": "chemistry",
-                        "created_at": "2026-01-07 16:51:00",
+                        "lng": 129.0,
+                        "lat": 35.0,
+                        "radius1": 3,
+                        "radius2": 20,
+                        "created_at": "2026-01-07 16:52:00",
                     },
                 ],
             }
@@ -52,29 +72,26 @@ class ProjectsListItemApiResponse(ApiResponse[List[ProjectsListItems]]):
 class ProjectCreate(ProjectValidators, BaseModel):
     """프로젝트 생성 요청"""
 
-    project_name: Annotated[
-        str, Form(..., min_length=1, max_length=100, description="프로젝트 이름")
-    ]
-    project_description: Annotated[
-        Optional[str], Form("", max_length=500, description="프로젝트 설명")
-    ]
-    disaster_type: Annotated[
-        Literal["nuclear", "chemistry", "storm", "flood", "complex"],
-        Form(..., description="재난 종류"),
-    ]
-    lng: Annotated[float, Form(..., ge=-180, le=180, description="X 좌표 (경도)")]
-    lat: Annotated[float, Form(..., ge=-90, le=90, description="Y 좌표 (위도)")]
-    radius1: Annotated[float, Form(..., gt=0, description="반경1")]
-    radius2: Annotated[float, Form(..., gt=0, description="반경2")]
-    radius3: Annotated[Optional[float], Form(None, gt=0, description="반경3")]
-    radius4: Annotated[Optional[float], Form(None, gt=0, description="반경4")]
-    wind_direction: Annotated[
-        Optional[int], Form(None, gt=0, description="바람 방향(원자력)")
-    ]
-    wind_speed: Annotated[
-        Optional[float], Form(None, gt=0, description="바람 속도(원자력)")
-    ]
-    created_at: Annotated[str, Form(..., description="생성된 날짜")]
+    upload_id: str = Field(..., description="청크 업로드 세션 ID")
+    project_name: str = Field(
+        ..., min_length=1, max_length=100, description="프로젝트 이름"
+    )
+    project_description: Optional[str] = Field(
+        "", max_length=500, description="프로젝트 설명"
+    )
+    disaster_type: Literal["nuclear", "chemistry", "storm", "flood", "complex"] = Field(
+        ..., description="재난 종류"
+    )
+    lng: float = Field(..., ge=-180, le=180, description="X 좌표 (경도)")
+    lat: float = Field(..., ge=-90, le=90, description="Y 좌표 (위도)")
+    radius1: float = Field(..., gt=0, description="반경1")
+    radius2: float = Field(..., gt=0, description="반경2")
+    radius3: Optional[float] = Field(None, gt=0, description="반경3")
+    radius4: Optional[float] = Field(None, gt=0, description="반경4")
+    wind_direction: Optional[int] = Field(
+        None, ge=1, le=16, description="바람 방향(원자력)"
+    )
+    wind_speed: Optional[float] = Field(None, gt=0, description="바람 속도(원자력)")
 
 
 class ProjectCreateResponse(BaseModel):
@@ -84,7 +101,7 @@ class ProjectCreateResponse(BaseModel):
 
 
 class ProjectCreateApiResponse(ApiResponse[ProjectCreateResponse]):
-    """프로젝트 생성 응답 예시"""
+    """프로젝트 생성 응답"""
 
     class Config:
         json_schema_extra = {

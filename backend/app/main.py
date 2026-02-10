@@ -15,6 +15,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi import Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    print(f"❌ Validation Error:")
+    print(f"URL: {request.url}")
+    print(f"Method: {request.method}")
+    print(f"Errors: {exc.errors()}")
+    print(f"Body: {exc.body}")
+
+    return JSONResponse(
+        status_code=422,
+        content={
+            "success": False,
+            "message": "요청 데이터 검증 실패",
+            "errors": exc.errors(),
+        },
+    )
+
+
 app.include_router(position.router, prefix="", tags=["위치표출"])
 app.include_router(geometry.router, prefix="", tags=["공간정보"])
 app.include_router(road.router, prefix="", tags=["링크"])

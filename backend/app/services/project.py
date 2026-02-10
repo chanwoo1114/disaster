@@ -7,15 +7,13 @@ from typing import List, Optional, Tuple
 class ProjectStorage:
     """JSONL 기반 프로젝트 저장"""
 
-    def __init__(self, path: str = None, max_per_count: int = 1000):
-        if path is None:
-            base_dir = Path(__file__).parent
-            self.data_dir = base_dir / "../data/project"
-        else:
-            self.data_dir = Path(path)
+    def __init__(self, max_per_batch: int = 1000):
+        self.data_dir = Path(__file__).parent.parent / "data"
 
-        self.data_dir.mkdir(exist_ok=True, parents=True)
-        self.max_per_count = max_per_count
+        self.projects_dir = self.data_dir / "projects"
+        self.projects_dir.mkdir(exist_ok=True, parents=True)
+
+        self.max_per_batch = max_per_batch
         self.metadata_file = self.data_dir / "metadata.json"
         self._init_metadata()
 
@@ -50,11 +48,18 @@ class ProjectStorage:
         return self._get_batch_folder(batch_num) / "project.jsonl"
 
     def _get_next_id(self) -> int:
+        """다음 ID 생성"""
         metadata = self._load_metadata()
         next_id = metadata["last_id"] + 1
         metadata["last_id"] = next_id
         self._save_metadata(metadata)
         return next_id
+
+    def get_project_dir(self, project_id: int) -> Path:
+        """프로젝트 디렉토리 경로"""
+        project_dir = self.projects_dir / str(project_id)
+        project_dir.mkdir(exist_ok=True, parents=True)
+        return project_dir
 
     def save_project(self, project: dict) -> bool:
         """프로젝트 저장"""
@@ -63,7 +68,7 @@ class ProjectStorage:
             current_batch = metadata["current_batch"]
             current_count = metadata["current_count"]
 
-            if current_count >= self.max_per_count:
+            if current_count >= self.max_per_batch:
                 current_batch += 1
                 current_count = 0
 
@@ -71,11 +76,17 @@ class ProjectStorage:
                 project["id"] = metadata["last_id"] + 1
                 metadata["last_id"] = project["id"]
 
-            if "created_at" not in project:
-                project["created_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            if "created_at" in project and project["created_at"]:
+                dt = datetime.fromisoformat(
+                    project["created_at"].replace("Z", "+00:00")
+                )
+                project["created_at"] = dt.strftime("%Y-%m-%d %H:%M:%S")
+
+            if "is_deleted" not in project:
                 project["is_deleted"] = False
 
             file_path = self._get_batch_file(str(current_batch))
+
             with open(file_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(project, ensure_ascii=False, default=str) + "\n")
 
@@ -125,35 +136,9 @@ class ProjectStorage:
                         if skipped < skip:
                             skipped += 1
                             continue
-                        print(project)
-                        print(skip)
-                        print(skipped)
                         load_projects.append(project)
 
             except Exception as e:
                 print(e)
 
         return load_projects
-
-    def load_project_by_id(self, project_id: int) -> Optional[dict]:
-        """ID로 프로젝트 조회"""
-        batch_num = (project_id - 1) // self.max_per_count + 1
-
-        file_path = self._get_batch_file(str(batch_num))
-
-        if not file_path.exists():
-            return None
-
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                lines = [line for line in f if line.strip()]
-
-            for line in reversed(lines):
-                project = json.loads(line)
-
-                if project["id"] == project_id:
-                    return project
-
-        except Exception as e:
-            print(e)
-            return None
