@@ -3,9 +3,7 @@ import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Tuple
-
-from fastapi import UploadFile
+from typing import Tuple
 
 
 class ChunkUploadService:

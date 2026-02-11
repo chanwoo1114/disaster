@@ -2,14 +2,14 @@ from fastapi import (
     APIRouter,
     Depends,
     File,
-    Form,
     HTTPException,
+    Path,
     Response,
     UploadFile,
     status,
 )
-from pydantic import ValidationError
 
+from ..schemas.common import ApiResponse
 from ..schemas.project import (
     ProjectCreate,
     ProjectCreateApiResponse,
@@ -51,6 +51,33 @@ async def get_projects(response: Response, params: ProjectQueryParams = Depends(
     return ProjectsItemApiResponse(
         success=True, message="프로젝트 목록 조회 성공", data=items
     )
+
+
+@router.delete(
+    "/{project_id}",
+    response_model=ApiResponse,
+    summary="프로젝트 삭제",
+)
+async def delete_project(
+    response: Response,
+    project_id: int = Path(..., description="프로젝트 ID"),
+):
+    """프로젝트 소프트 삭제"""
+    try:
+        storage.delete_project(project_id)
+
+        response.status_code = status.HTTP_200_OK
+        return ApiResponse(success=True, message="프로젝트가 삭제되었습니다", data=None)
+
+    except ValueError as e:
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return ApiResponse(success=False, message=str(e), data=None)
+
+    except Exception as e:
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return ApiResponse(
+            success=False, message=f"프로젝트 삭제 실패: {str(e)}", data=None
+        )
 
 
 @router.post(
@@ -120,7 +147,6 @@ async def upload_chunk(
         )
 
 
-# ed9b68da-42a3-4784-a99a-9f74dba7db72
 @router.post(
     "",
     response_model=ProjectCreateApiResponse,

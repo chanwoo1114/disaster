@@ -76,14 +76,8 @@ class ProjectStorage:
                 project["id"] = metadata["last_id"] + 1
                 metadata["last_id"] = project["id"]
 
-            if "created_at" in project and project["created_at"]:
-                dt = datetime.fromisoformat(
-                    project["created_at"].replace("Z", "+00:00")
-                )
-                project["created_at"] = dt.strftime("%Y-%m-%d %H:%M:%S")
-
-            if "is_deleted" not in project:
-                project["is_deleted"] = False
+            project["created_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            project["is_deleted"] = False
 
             file_path = self._get_batch_file(str(current_batch))
 
@@ -142,3 +136,37 @@ class ProjectStorage:
                 print(e)
 
         return load_projects
+
+    def delete_project(self, project_id: int) -> bool:
+        """프로젝트 소프트 삭제 (is_deleted = True)"""
+        batch_folders = sorted(self.data_dir.glob("[0-9]*"), key=lambda x: int(x.name))
+
+        for folder in batch_folders:
+            file_path = folder / "project.jsonl"
+            if not file_path.exists():
+                continue
+
+            with open(file_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+
+            updated = False
+            new_lines = []
+            for line in lines:
+                if not line.strip():
+                    continue
+                project = json.loads(line)
+                if project.get("id") == project_id:
+                    if project.get("is_deleted", False):
+                        raise ValueError("이미 삭제된 프로젝트입니다")
+                    project["is_deleted"] = True
+                    updated = True
+                new_lines.append(
+                    json.dumps(project, ensure_ascii=False, default=str) + "\n"
+                )
+
+            if updated:
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.writelines(new_lines)
+                return True
+
+        raise ValueError("프로젝트를 찾을 수 없습니다")

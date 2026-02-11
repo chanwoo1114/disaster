@@ -16,7 +16,8 @@ class ProjectQueryParams(BaseModel):
 class ProjectItems(BaseModel):
     """프로젝트 상세 조회 응답"""
 
-    id: int = Field(..., description="고유ID")
+    upload_id: str = Field(..., description="프로젝트 경로")
+    id: int = Field(..., description="ID")
     project_name: str = Field(..., description="프로젝트 이름")
     project_description: Optional[str] = Field(None, description="프로젝트 설명")
     disaster_type: str = Field(..., description="재난 유형")
@@ -29,6 +30,7 @@ class ProjectItems(BaseModel):
     wind_direction: Optional[int] = Field(None, description="바람 방향")
     wind_speed: Optional[float] = Field(None, description="바람 속도")
     created_at: str = Field(..., description="생성된 날짜")
+    is_deleted: bool = Field(..., description="삭제 여부")
 
 
 class ProjectsItemApiResponse(ApiResponse[List[ProjectItems]]):
@@ -41,6 +43,7 @@ class ProjectsItemApiResponse(ApiResponse[List[ProjectItems]]):
                 "message": "프로젝트 목록 조회 성공",
                 "data": [
                     {
+                        "uuid": "a12754e3-39ec-4c17-9f19-20c68ada7f35'",
                         "id": 1,
                         "project_name": "테스트1",
                         "disaster_type": "nuclear",
@@ -53,8 +56,10 @@ class ProjectsItemApiResponse(ApiResponse[List[ProjectItems]]):
                         "wind_direction": 1,
                         "wind_speed": 10,
                         "created_at": "2026-01-07 16:52:00",
+                        "is_deleted": False,
                     },
                     {
+                        "uuid": "5f757673-1ac4-4d51-bf39-31346f2414c7",
                         "id": 2,
                         "project_name": "테스트2",
                         "disaster_type": "chemistry",
@@ -63,6 +68,7 @@ class ProjectsItemApiResponse(ApiResponse[List[ProjectItems]]):
                         "radius1": 3,
                         "radius2": 20,
                         "created_at": "2026-01-07 16:52:00",
+                        "is_deleted": False,
                     },
                 ],
             }
