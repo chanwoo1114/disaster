@@ -13,8 +13,8 @@ class ZipFileValidator:
 
     # 재난 유형별 필수 파일
     REQUIRED_FILES_MAP = {
-        "nuclear": ["VehicleLocation", "Vehicle_Position"],
-        "chemistry": ["VehicleLocation", "Vehicle_Position"],
+        "nuclear": ["VehicleLocation"],
+        "chemistry": [["VehicleLocation", "Vehicle_Position"]],
         "flood": ["Person_Position"],
         "storm": ["Person_Position"],
         "complex": ["VehicleLocation", "Person_Position"],
@@ -120,25 +120,32 @@ class ZipFileValidator:
         try:
             with zipfile.ZipFile(file_path, "r") as zf:
                 file_list = zf.namelist()
-
-                # txt 파일 존재 확인
                 txt_files = [f for f in file_list if f.endswith(".txt")]
+
                 if not txt_files:
                     raise HTTPException(
                         status_code=400, detail="위치 데이터 파일(.txt)이 없습니다"
                     )
 
-                # 필수 파일 확인
-                missing_files = []
-                for required in required_files:
-                    found = any(required in name for name in file_list)
-                    if not found:
-                        missing_files.append(required)
+                missing_groups = []
 
-                if missing_files:
+                for required in required_files:
+                    if isinstance(required, list):
+                        found = any(
+                            any(req in name for name in txt_files) for req in required
+                        )
+                        if not found:
+                            missing_groups.append(" 또는 ".join(required))
+
+                    else:
+                        found = any(required in name for name in txt_files)
+                        if not found:
+                            missing_groups.append(required)
+
+                if missing_groups:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"필수 파일이 누락되었습니다: {', '.join(missing_files)}",
+                        detail=f"필수 파일이 누락되었습니다: {', '.join(missing_groups)}",
                     )
 
                 return {"txt_files": txt_files, "disaster_type": disaster_type}
