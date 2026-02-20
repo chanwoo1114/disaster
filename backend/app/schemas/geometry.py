@@ -6,18 +6,6 @@ from pydantic import BaseModel, Field
 from .common import ApiResponse
 
 
-class BaseQueryParams:
-    """공통 쿼리 파라미터"""
-
-    def __init__(
-        self,
-        lng: float = Query(..., ge=-180, le=180, description="X 좌표 (경도)"),
-        lat: float = Query(..., ge=-90, le=90, description="Y 좌표 (위도)"),
-    ):
-        self.lng = lng
-        self.lat = lat
-
-
 class NuclearQueryParams:
     """방사능 대피 범위 조회 파라미터"""
 
@@ -44,9 +32,9 @@ class NuclearQueryParams:
         self.wind_direction = wind_direction
         self.shadow_distance = shadow_distance
         self.analysis_distance = analysis_distance
+        self._validate()
 
-    def validate(self):
-        """값 검증 - None 체크 추가"""
+    def _validate(self):
         if all(
             v is None
             for v in [
@@ -107,9 +95,9 @@ class DisasterQueryParams:
         self.disaster_type = disaster_type
         self.disaster_distance = disaster_distance
         self.analysis_distance = analysis_distance
+        self._validate()
 
-    def validate(self):
-        """값 검증"""
+    def _validate(self):
         max_disaster_distance = {"chemistry": 10, "flood": 2, "storm": 2, "complex": 10}
         max_analysis_distance = {"chemistry": 15, "flood": 3, "storm": 3, "complex": 15}
 
@@ -147,8 +135,10 @@ class NuclearApiResponse(ApiResponse[NuclearBufferData]):
                 "success": True,
                 "message": "방사능 대피 범위 조회 성공",
                 "data": {
-                    "centroid": {"type": "Point", "coordinates": [129.0, 35.0]},
                     "paz_geometry": {"type": "Polygon", "coordinates": []},
+                    "upz_geometry": {"type": "Polygon", "coordinates": []},
+                    "shadow_geometry": {"type": "Polygon", "coordinates": []},
+                    "analysis_geometry": {"type": "Polygon", "coordinates": []},
                 },
             }
         }
@@ -157,7 +147,6 @@ class NuclearApiResponse(ApiResponse[NuclearBufferData]):
 class DisasterBufferData(BaseModel):
     """일반 재난 대피 범위 응답 파라미터"""
 
-    centroid: Dict[str, Any] = Field(..., description="중심점 GeoJson")
     disaster_geometry: Dict[str, Any] = Field(..., description="피난 권역")
     analysis_geometry: Dict[str, Any] = Field(..., description="분석 권역")
 
@@ -169,7 +158,6 @@ class DisasterApiResponse(ApiResponse[DisasterBufferData]):
                 "success": True,
                 "message": "재난 범위 조회 성공",
                 "data": {
-                    "centroid": {"type": "Point", "coordinates": [127.0, 37.0]},
                     "disaster_geometry": {"type": "Polygon", "coordinates": []},
                     "analysis_geometry": {"type": "Polygon", "coordinates": []},
                 },

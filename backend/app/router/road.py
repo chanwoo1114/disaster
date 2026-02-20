@@ -1,8 +1,6 @@
-from typing import Literal
+from fastapi import APIRouter, Depends, Response, status
 
-from fastapi import APIRouter, Query, Response, status
-
-from ..schemas.road import RoadApiResponse, RoadResponse
+from ..schemas.road import RoadApiResponse, RoadQueryParams, RoadResponse
 from ..services.road_geometry import RoadGeometry
 
 router = APIRouter(prefix="/road")
@@ -11,18 +9,10 @@ router = APIRouter(prefix="/road")
 @router.get(
     "/geometry", response_model=RoadApiResponse, summary="재난 범위 도로 조회 API"
 )
-async def create_road_geometry(
-    response: Response,
-    lng: float = Query(..., ge=-180, le=180, description="X 좌표 (경도)"),
-    lat: float = Query(..., ge=-90, le=90, description="Y 좌표 (위도)"),
-    disaster_type: Literal["nuclear", "chemistry", "storm", "flood", "complex"] = Query(
-        ..., description="재난 종류"
-    ),
-    analysis_distance: int = Query(..., le=50, description="분석 권역 거리"),
-):
+async def create_road_geometry(response: Response, params: RoadQueryParams = Depends()):
     try:
         features = RoadGeometry.get_roads_geometry(
-            lng, lat, disaster_type, analysis_distance
+            params.lng, params.lat, params.disaster_type, params.analysis_distance
         )
 
         road_data = RoadResponse(features=features)

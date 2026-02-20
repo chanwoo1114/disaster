@@ -22,8 +22,6 @@ async def create_nuclear_buffer(
     response: Response, params: NuclearQueryParams = Depends()
 ):
     try:
-        params.validate()
-
         result = DisasterGeometryService.create_nuclear_buffer(
             lng=params.lng,
             lat=params.lat,
@@ -62,8 +60,6 @@ async def create_disaster_buffer(
     response: Response, params: DisasterQueryParams = Depends()
 ):
     try:
-        params.validate()
-
         result = DisasterGeometryService.create_disaster_buffer(
             lng=params.lng,
             lat=params.lat,

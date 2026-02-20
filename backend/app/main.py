@@ -1,32 +1,43 @@
-from fastapi import FastAPI
+import logging
+
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.router import geometry, position, project, road
 
+from .services.redis_config import redis_config
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 app = FastAPI()
 
-origins = ["http://39.119.84.115:8000", "*"]
+
+@app.on_event("startup")
+async def startup_event():
+    """Redis 연결 확인"""
+    redis_config()
+
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-from fastapi import Request
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
-
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    print(f"❌ Validation Error:")
-    print(f"URL: {request.url}")
-    print(f"Method: {request.method}")
-    print(f"Errors: {exc.errors()}")
-    print(f"Body: {exc.body}")
+    logger.warning(
+        "Validation Error: URL=%s Method=%s Errors=%s",
+        request.url,
+        request.method,
+        exc.errors(),
+    )
 
     return JSONResponse(
         status_code=422,
