@@ -8,6 +8,7 @@ from .common import ApiResponse
 
 class UploadPosition(BaseModel):
     first_time: int = Field(..., description="시작 시간")
+    last_time: int = Field(..., description="종료 시간")
 
 
 class PositionUploadApiResponse(ApiResponse[UploadPosition]):
@@ -16,11 +17,7 @@ class PositionUploadApiResponse(ApiResponse[UploadPosition]):
             "example": {
                 "success": True,
                 "message": "Redis 업로드 성공",
-                "data": [
-                    {
-                        "first_time": 110000,
-                    }
-                ],
+                "data": [{"first_time": 110000, "last_time": 130000}],
             }
         }
 

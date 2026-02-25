@@ -56,7 +56,9 @@ class CacheService:
                 result[int(time)].extend(group.to_dict(orient="records"))
 
         first_time = PositionService._seconds_to_hhmmss(min(result.keys()))
-        return first_time, dict(result)
+        last_time = PositionService._seconds_to_hhmmss(max(result.keys()))
+
+        return first_time, last_time, dict(result)
 
 
 class PositionService:
@@ -91,7 +93,7 @@ class PositionService:
         if value:
             return json.loads(value)
 
-        _, position_data = CacheService.preload_position(disaster_type, directory)
+        _, _, position_data = CacheService.preload_position(disaster_type, directory)
         PositionService.upload_data(directory, position_data)
 
         value = redis_client.get(key)
