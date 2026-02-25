@@ -52,7 +52,7 @@ class CacheService:
             for time, group in df.groupby("time"):
                 result[int(time)].extend(group.to_dict(orient="records"))
 
-        first_time = PositionService._seconds_to_hhmmss(min(result.keys()))
+        first_time = PositionService._seconds_to_hhmmss(min(result.keys()) - 1)
         last_time = PositionService._seconds_to_hhmmss(max(result.keys()))
 
         return first_time, last_time, dict(result)
