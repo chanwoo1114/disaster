@@ -24,3 +24,9 @@ def redis_config():
     except Exception as e:
         logger.warning(f"Redis 연결 실패: {e}")
         redis_client = None
+
+
+def get_redis_client():
+    if redis_client is None:
+        raise ConnectionError("Redis 연결 오류")
+    return redis_client
