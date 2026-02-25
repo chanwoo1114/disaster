@@ -7,37 +7,12 @@ from fastapi.responses import JSONResponse
 
 from app.router import geometry, position, project, road
 
-from .schemas.exceptions import AppException
 from .services.redis_config import redis_config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
-
-
-@app.exception_handler(AppException)
-async def app_exception_handler(request: Request, exc: AppException):
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "success": False,
-            "message": exc.message,
-            "data": None,
-        },
-    )
-
-
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    return JSONResponse(
-        status_code=500,
-        content={
-            "success": False,
-            "message": f"서버 오류: {str(exc)}",
-            "data": None,
-        },
-    )
 
 
 @app.on_event("startup")
@@ -53,6 +28,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.warning(
+        "Validation Error: URL=%s Method=%s Errors=%s",
+        request.url,
+        request.method,
+        exc.errors(),
+    )
+
+    return JSONResponse(
+        status_code=422,
+        content={
+            "success": False,
+            "message": "요청 데이터 검증 실패",
+            "errors": exc.errors(),
+        },
+    )
+
 
 app.include_router(position.router, prefix="", tags=["위치표출"])
 app.include_router(geometry.router, prefix="", tags=["공간정보"])
