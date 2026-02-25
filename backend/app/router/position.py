@@ -3,7 +3,14 @@ from typing import Union
 from fastapi import APIRouter, Depends
 
 from ..schemas.exceptions import AppException
-from ..schemas.position import *
+from ..schemas.position import (
+    ChemistryPositionApiResponse,
+    NuclearPositionApiResponse,
+    PositionQueryParams,
+    PositionUploadApiResponse,
+    UploadPosition,
+    WalkingPositionApiResponse,
+)
 from ..services.position import CacheService, PositionService
 
 router = APIRouter(prefix="/position")

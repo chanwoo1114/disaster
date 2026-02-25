@@ -169,10 +169,7 @@ async def create_project(
         )
 
         # 4. 프로젝트 저장
-        project_id = storage._get_next_id()
-
         project_dict = request.model_dump()
-        project_dict["id"] = project_id
         project_dir = storage.get_project_dir(project_dict["upload_id"])
 
         zip_path = zip_service.move_to_project(merged_file, project_dir)
@@ -180,7 +177,7 @@ async def create_project(
 
         merged_file = None  # 이동 완료 후 cleanup 방지
 
-        storage.save_project(project_dict)
+        project_id = storage.create_project(project_dict)
 
         response.status_code = status.HTTP_201_CREATED
 

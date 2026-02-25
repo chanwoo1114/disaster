@@ -1,20 +1,24 @@
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
+
+from .. import config
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectStorage:
     """JSONL 기반 프로젝트 저장"""
 
-    def __init__(self, max_per_batch: int = 1000):
-        self.data_dir = Path(__file__).parent.parent / "data"
-
-        self.projects_dir = self.data_dir / "projects"
+    def __init__(self, max_per_batch: int = config.MAX_PER_BATCH):
+        self.data_dir = config.DATA_DIR
+        self.projects_dir = config.PROJECTS_DIR
         self.projects_dir.mkdir(exist_ok=True, parents=True)
 
         self.max_per_batch = max_per_batch
-        self.metadata_file = self.data_dir / "metadata.json"
+        self.metadata_file = config.DATA_DIR / "metadata.json"
         self._init_metadata()
 
     def _init_metadata(self):
@@ -29,7 +33,8 @@ class ProjectStorage:
             with open(self.metadata_file, "r", encoding="utf-8") as f:
                 return json.load(f)
 
-        except:
+        except (json.JSONDecodeError, OSError) as e:
+            logger.error(f"메타데이터 로드 실패: {e}")
             return {"current_batch": 1, "current_count": 0, "last_id": 0}
 
     def _save_metadata(self, metadata: dict):
@@ -55,11 +60,18 @@ class ProjectStorage:
         self._save_metadata(metadata)
         return next_id
 
-    def get_project_dir(self, project_id: int) -> Path:
+    def get_project_dir(self, directory: str) -> Path:
         """프로젝트 디렉토리 경로"""
-        project_dir = self.projects_dir / str(project_id)
+        project_dir = self.projects_dir / directory
         project_dir.mkdir(exist_ok=True, parents=True)
         return project_dir
+
+    def create_project(self, data: dict) -> int:
+        """프로젝트 저장 후 생성된 ID 반환"""
+        project_id = self._get_next_id()
+        data["id"] = project_id
+        self.save_project(data)
+        return project_id
 
     def save_project(self, project: dict) -> bool:
         """프로젝트 저장"""
@@ -92,12 +104,10 @@ class ProjectStorage:
             return True
 
         except Exception as e:
-            print(e)
+            logger.error(f"프로젝트 저장 실패: {e}")
             return False
 
-    def load_project_list(
-        self, skip: int = 0, limit: int = 12
-    ) -> Tuple[List[dict], bool]:
+    def load_project_list(self, skip: int = 0, limit: int = 12) -> List[dict]:
         """시나리오 목록 조회"""
         load_projects = []
         skipped = 0
@@ -133,7 +143,7 @@ class ProjectStorage:
                         load_projects.append(project)
 
             except Exception as e:
-                print(e)
+                logger.error(f"프로젝트 목록 로드 실패: {e}")
 
         return load_projects
 

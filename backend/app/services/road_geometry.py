@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import Dict, List, Optional
 
 import geopandas as gpd
@@ -8,9 +7,8 @@ from shapely.geometry import LineString, MultiLineString, Point
 from shapely.ops import transform
 from shapely.strtree import STRtree
 
+from ..config import DATA_DIR
 from .disaster_geometry import _TO_METERS, _TO_WGS84
-
-_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
 class RoadGeometry:
@@ -21,7 +19,7 @@ class RoadGeometry:
     @classmethod
     def load_road_data(cls) -> gpd.GeoDataFrame:
         if cls._road_data_4326 is None:
-            csv_path = _DATA_DIR / "link.csv"
+            csv_path = DATA_DIR / "link.csv"
             df = pd.read_csv(csv_path, usecols=["link_id", "geom", "cartrk_co"])
 
             df["geometry"] = df["geom"].apply(wkt.loads)

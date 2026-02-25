@@ -1,9 +1,9 @@
 import json
 from collections import defaultdict
-from pathlib import Path
 
 import pandas as pd
 
+from ..config import PROJECTS_DIR, REDIS_TTL
 from ..schemas.exceptions import AppException
 from .redis_config import get_redis_client
 
@@ -17,9 +17,6 @@ DISASTER_COLUMNS_MAP = {
     "storm": WALKING_COLUMNS,
     "flood": WALKING_COLUMNS,
 }
-
-DATA_DIR = Path(__file__).parent.parent / "data" / "projects"
-REDIS_TTL = 3600
 
 
 def _resolve_columns(disaster_type: str, col_count: int) -> list[str]:
@@ -36,7 +33,7 @@ def _resolve_columns(disaster_type: str, col_count: int) -> list[str]:
 class CacheService:
     @staticmethod
     def preload_position(disaster_type: str, directory: str) -> tuple[int, dict]:
-        base_dir = DATA_DIR / directory
+        base_dir = PROJECTS_DIR / directory
 
         if not base_dir.exists():
             raise AppException(404, f"폴더를 찾을 수 없습니다: {directory}")

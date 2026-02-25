@@ -4,11 +4,12 @@ from typing import List, Optional
 
 from fastapi import HTTPException, UploadFile
 
+from ..config import MAX_COMPRESSION_RATIO, MAX_FILE_SIZE, MAX_UNCOMPRESSED_SIZE
+
 
 class ZipFileValidator:
     """ZIP 파일 검증"""
 
-    MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
     DANGEROUS_EXTENSIONS = [".exe", ".dll", ".bat", ".cmd", ".ps1", ".sh", ".py", ".js"]
 
     # 재난 유형별 필수 파일
@@ -41,7 +42,7 @@ class ZipFileValidator:
     @classmethod
     def validate_file_size(cls, size: int, max_size: Optional[int] = None) -> None:
         """파일 크기 검증"""
-        max_allowed = max_size or cls.MAX_FILE_SIZE
+        max_allowed = max_size or MAX_FILE_SIZE
 
         if size == 0:
             raise HTTPException(status_code=400, detail="빈 파일입니다")
@@ -96,12 +97,12 @@ class ZipFileValidator:
                     total_uncompressed / file_size if file_size > 0 else 0
                 )
 
-                if compression_ratio > 100:
+                if compression_ratio > MAX_COMPRESSION_RATIO:
                     raise HTTPException(
                         status_code=400, detail="비정상적인 압축률이 감지되었습니다"
                     )
 
-                if total_uncompressed > 2 * 1024 * 1024 * 1024:
+                if total_uncompressed > MAX_UNCOMPRESSED_SIZE:
                     raise HTTPException(
                         status_code=400,
                         detail="압축 해제 후 크기가 너무 큽니다 (최대 2GB)",

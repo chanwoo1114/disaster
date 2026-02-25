@@ -1,21 +1,21 @@
 import json
+import os
 import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Tuple
 
+from .. import config
+
 
 class ChunkUploadService:
     """청크 업로드 처리 서비스"""
 
-    MAX_FILE_SIZE = 500 * 1024 * 1024
-
     def __init__(self):
-        base_path = Path(__file__).parent.parent / "data"
-        self.chunks_path = base_path / "temp" / "chunks"
-        self.complete_path = base_path / "uploads"
-        self.sessions_file = base_path / "uploads" / "sessions.json"
+        self.chunks_path = config.TEMP_DIR / "chunks"
+        self.complete_path = config.UPLOADS_DIR
+        self.sessions_file = config.UPLOADS_DIR / "sessions.json"
 
         self.chunks_path.mkdir(parents=True, exist_ok=True)
         self.complete_path.mkdir(parents=True, exist_ok=True)
@@ -42,9 +42,9 @@ class ChunkUploadService:
         if not file_name.lower().endswith(".zip"):
             raise ValueError("ZIP 파일만 업로드 가능합니다")
 
-        if total_size > self.MAX_FILE_SIZE:
+        if total_size > config.MAX_FILE_SIZE:
             raise ValueError(
-                f"파일 크기는 {self.MAX_FILE_SIZE // (1024 * 1024)}MB를 초과할 수 없습니다"
+                f"파일 크기는 {config.MAX_FILE_SIZE // (1024 * 1024)}MB를 초과할 수 없습니다"
             )
 
         upload_id = str(uuid.uuid4())
@@ -83,8 +83,6 @@ class ChunkUploadService:
             raise ValueError(f"이미 업로드된 청크입니다: {chunk_index}")
 
         chunk_dir = self.chunks_path / upload_id
-
-        import os
 
         os.makedirs(chunk_dir, exist_ok=True)
 
