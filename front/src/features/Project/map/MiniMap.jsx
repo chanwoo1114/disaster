@@ -1,9 +1,9 @@
 import {useEffect, useRef} from "react";
-import {addMarker, moveMap, removeMarker} from "../../../utils/mapNavigation.js";
+import {moveMap} from "../../../utils/mapNavigation.js";
+import {addMarker, removeMarker} from "../../../utils/mapMarkers.js";
 import {initializeMap} from "../../../utils/mapInit.js";
 import {addMapClickListener} from "../../../utils/mapInteraction.js";
-
-const SEOUL_CITY_HALL = {x: 126.9780, y: 37.5665};
+import {SEOUL_CITY_HALL} from "../../../constants/index.js";
 
 export default function MiniMap({location, center, onMapClick}) {
   const mapInstance = useRef(null);
@@ -107,7 +107,7 @@ export default function MiniMap({location, center, onMapClick}) {
   }, [location, center]);
 
   return (
-    <div className="relative w-full h-60">
+    <div className="relative w-full h-full">
       <div
         id='minimap'
         className={`w-full h-full ${location === "map-select" ? 'cursor-pointer' : ''}`}

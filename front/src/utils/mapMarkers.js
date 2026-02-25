@@ -5,10 +5,8 @@ export const addMarker = (mapInstance, x, y, options = {}) => {
   if (!mapInstance || !window.ol) return null;
 
   const {
-    radius = 4,
-    fillColor = 'red',
-    strokeColor = '#fff',
-    strokeWidth = 2
+    radius = 3,
+    fillColor = 'red'
   } = options;
 
   const transformed = transformCoordinates(x, y);
@@ -22,10 +20,6 @@ export const addMarker = (mapInstance, x, y, options = {}) => {
       radius,
       fill: new window.ol.style.Fill({
         color: fillColor
-      }),
-      stroke: new window.ol.style.Stroke({
-        color: strokeColor,
-        width: strokeWidth
       })
     })
   });

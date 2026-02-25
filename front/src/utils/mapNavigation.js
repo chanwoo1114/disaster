@@ -63,7 +63,7 @@ export const moveMap = (mapInstance, x, y, zoom = 12, animate = true, duration =
 
   const startTime = Date.now();
 
-  function animate() {
+  function animateStep() {
     const elapsed = Date.now() - startTime;
     let progress = Math.min(elapsed / duration, 1); // 0 ~ 1
 
@@ -84,50 +84,10 @@ export const moveMap = (mapInstance, x, y, zoom = 12, animate = true, duration =
 
     // 애니메이션 계속 진행
     if (progress < 1) {
-      requestAnimationFrame(animate);
+      requestAnimationFrame(animateStep);
     }
   }
 
-  animate();
+  animateStep();
 };
 
-// 마커 생성
-export const addMarker = (mapInstance, x, y) => {
-  if (!mapInstance || !window.ol) return null;
-
-  const transformed = transformCoordinates(x, y);
-
-  const marker = new window.ol.Feature({
-    geometry: new window.ol.geom.Point(transformed)
-  });
-
-  const markerStyle = new window.ol.style.Style({
-    image: new window.ol.style.Circle({
-      radius: 4,
-      fill: new window.ol.style.Fill({
-        color: 'red'
-      })
-    })
-  });
-
-  marker.setStyle(markerStyle);
-
-  const vectorSource = new window.ol.source.Vector({
-    features: [marker]
-  });
-
-  const vectorLayer = new window.ol.layer.Vector({
-    source: vectorSource
-  });
-
-  mapInstance.addLayer(vectorLayer);
-
-  return vectorLayer;
-};
-
-// 마커 제거
-export const removeMarker = (mapInstance, markerLayer) => {
-  if (mapInstance && markerLayer) {
-    mapInstance.removeLayer(markerLayer);
-  }
-};

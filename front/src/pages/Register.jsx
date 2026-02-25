@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { getProjectData } from "../services/api.js";
+import { PROJECT_LIST_ITEM_HEIGHT } from "../constants/index.js";
 
 import Sidebar from "../components/layout/Sidebar.jsx"
 import MainContent from "../components/layout/MainContent.jsx";
@@ -12,35 +13,28 @@ export default function Register() {
   const [hasMore, setHasMore] = useState(true);
   const scrollRef = useRef(null);
   const [selectedProject, setSelectedProject] = useState(null);
-  const [mainName, setMainName] = useState('새 프로젝트');
-  const [viewMode, setViewMode] = useState('empty'); //empty, create, view
-
+  const [viewMode, setViewMode] = useState(false);
 
   const calculateLimit = () => {
     if (scrollRef.current) {
       const containerHeight = scrollRef.current.clientHeight;
-      const itemHeight = 60;
+      const itemHeight = PROJECT_LIST_ITEM_HEIGHT;
       const visibleItems = Math.ceil(containerHeight / itemHeight);
-      const calculatedLimit = visibleItems + 5;
-      return calculatedLimit;
+      return visibleItems + 5;
     }
     return 12;
   };
-
 
   useEffect(() => {
     if (selectedProject) {
       const project = projectData.find(p => p.id === selectedProject);
       if (project) {
-        setMainName(project.project_name);
-        setViewMode('view')
+        setViewMode(true)
       }
     } else {
-      setMainName('새 프로젝트');
-      setViewMode('empty')
+      setViewMode(false)
     }
   }, [selectedProject, projectData]);
-
 
   useEffect(() => {
     const initialLimit = calculateLimit();
@@ -96,15 +90,20 @@ export default function Register() {
     }
   };
 
-
+  // 새 프로젝트 생성
   const handleCreateProject = () => {
     setSelectedProject(null);
-    setMainName('새 프로젝트');
-    setViewMode('create')
+    setViewMode(true)
+  }
+
+  // 프로젝트 생성 취소
+  const handleCancelCreate = () => {
+    setSelectedProject(null);
+    setViewMode(false);
   }
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen overflow-hidden bg-gray-50">
       {/* 왼쪽 사이드바 영역 */}
       <Sidebar
         projectData={projectData}
@@ -119,10 +118,11 @@ export default function Register() {
 
       {/* 오른쪽 메인 영역 */}
       <MainContent
-        mainName={mainName}
         viewMode={viewMode}
-        selectedProject={selectedProject}
+        selectedProjectData={projectData.find(p => p.id === selectedProject) || null}
         onCreateProject={handleCreateProject}
+        onCancelCreate={handleCancelCreate}
+        on
       />
     </div>
   );

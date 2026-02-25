@@ -1,11 +1,10 @@
 import RadiusInput from "./RadiusInput.jsx";
-import { SectionTitle } from "../../../components/common/SectionTitle.jsx"
+import SectionTitle from "../../../components/common/SectionTitle.jsx"
 
 export default function DisasterParameters({
   selectedDisaster,
   disasterParams,
   onParamChange,
-  inputStyle
 }) {
   const disasterFieldConfigs = {
     nuclear: [
@@ -50,8 +49,8 @@ export default function DisasterParameters({
             label={field.label}
             value={disasterParams[field.key]}
             onChange={(e) => onParamChange(field.key, e.target.value)}
-            inputStyle={inputStyle}
             defaultValue={field.defaultValue}
+            max={field.max}
           />
         ))}
       </div>

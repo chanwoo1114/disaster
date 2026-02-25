@@ -1,13 +1,22 @@
-import { useState, useEffect } from 'react';
-import { SectionSubTitle } from "../../../../components/common/SectionSubTitle.jsx";
-import { InputField } from "../../../../components/common/InputField.jsx";
+import { useState, useEffect, useRef } from 'react';
+import SectionSubTitle from "../../../../components/common/SectionSubTitle.jsx";
+import InputField from "../../../../components/common/InputField.jsx";
 
-export default function WindSpeedInput({ value, onChange, inputStyle, maxLimit }) {
+export default function WindSpeedInput({ value, onChange, maxLimit }) {
   const [warningMsg, setWarningMsg] = useState('');
+  const warningTimerRef = useRef(null);
 
   useEffect(() => {
     setWarningMsg('');
   }, [maxLimit]);
+
+  useEffect(() => {
+    return () => {
+      if (warningTimerRef.current) {
+        clearTimeout(warningTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleInputChange = (e) => {
     const inputValue = e.target.value;
@@ -26,7 +35,10 @@ export default function WindSpeedInput({ value, onChange, inputStyle, maxLimit }
 
       setWarningMsg(`최대 UPZ 범위(${limit}km)를 초과할 수 없습니다.`);
 
-      setTimeout(() => {
+      if (warningTimerRef.current) {
+        clearTimeout(warningTimerRef.current);
+      }
+      warningTimerRef.current = setTimeout(() => {
         setWarningMsg('');
       }, 3000);
 
@@ -44,7 +56,7 @@ export default function WindSpeedInput({ value, onChange, inputStyle, maxLimit }
       <div className="relative">
         <InputField
           type="number"
-          className={`${inputStyle} w-full pr-[180px] transition-all duration-200 ${
+          className={`w-full pr-[180px] transition-all duration-200 ${
             warningMsg ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : ''
           }`}
           value={value}

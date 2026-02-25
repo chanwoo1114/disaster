@@ -1,24 +1,29 @@
-import DocumentIcon from "../../../components/common/DocumentIcon.jsx";
-import ProjectAddButton from "../../../components/common/ProjectAddButton.jsx";
+import { FolderPlus } from 'lucide-react';
 
 export default function EmptyProject({ onCreateProject }) {
   return (
-    <div className="flex flex-col items-center justify-center flex-1 gap-6">
-      <DocumentIcon className = "w-[640px] h-[640px]" />
+    <div className="flex-1 flex items-center justify-center p-8 bg-gray-50">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 max-w-md text-center">
+        <div className="inline-flex items-center justify-center w-24 h-24 mb-6 bg-gradient-to-br from-blue-100 to-blue-50 rounded-2xl">
+          <FolderPlus className="w-12 h-12 text-blue-600" />
+        </div>
 
-      <div className="flex flex-col items-center gap-2">
-        <h2 className="text-5xl font-bold text-gray-800">
-          새로운 프로젝트를 만들어보세요
+        <h2 className="text-2xl font-bold text-gray-900 mb-3">
+          프로젝트를 시작하세요
         </h2>
-        <p className="text-2xl text-gray-500">
-          Create your first project
+        <p className="text-gray-500 mb-8">
+          재난 대피 시뮬레이션 프로젝트를<br />생성하고 분석을 시작할 수 있습니다
         </p>
-        <ProjectAddButton
-          size="large"
-          text="새 프로젝트"
+
+        <button
           onClick={onCreateProject}
-        />
+          className="inline-flex items-center gap-2 px-8 py-3.5 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-all shadow-md hover:shadow-lg"
+        >
+          <FolderPlus className="w-5 h-5" />
+          새 프로젝트 시작하기
+        </button>
       </div>
     </div>
+
   )
 }

@@ -1,13 +1,11 @@
-import { InputField } from "../../../components/common/InputField.jsx";
+import InputField from "../../../components/common/InputField.jsx";
 
 export default function LocationSelector({
   locations,
   selectedLocation,
-  locationName,
   onLocationChange,
   coordinates,
   onCoordinatesChange,
-  onLocationNameChange,
 }) {
   const isMapSelectMode = selectedLocation === 'map-select';
 
@@ -31,7 +29,7 @@ export default function LocationSelector({
 
   return (
     <div>
-      <div className="w-72">
+      <div className="w-full">
         <select
           value={selectedLocation}
           className="w-full border rounded border-gray-200 bg-gray-100 p-1 text-gray-800"
@@ -51,12 +49,6 @@ export default function LocationSelector({
 
       {selectedLocation && (
         <div className="flex flex-col gap-2 mt-2">
-          <InputField
-            type='text'
-            placeholder="위치"
-            onChange={(e) => onLocationNameChange && onLocationNameChange(e.target.value)}            readOnly={!isMapSelectMode}
-            value={isMapSelectMode ? (locationName || '') : selectedLocation}
-          />
           <InputField
             type='number'
             placeholder='위도'

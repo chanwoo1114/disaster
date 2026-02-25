@@ -1,6 +1,7 @@
-export function InputField({
+export default function InputField({
   value,
   onChange,
+  onBlur,
   placeholder,
   readOnly = false,
   type = 'text',
@@ -19,8 +20,11 @@ export function InputField({
         value={value}
         placeholder={placeholder}
         onChange={onChange}
+        onBlur={onBlur}
         readOnly={readOnly}
-        step={step || (type === 'number' ? '0.000001' : undefined)}
+        min={type === 'number' ? '0' : undefined}
+        max={type === 'number' && maxValue ? maxValue : undefined}
+        step={step || (type === 'number' ? '0.1' : undefined)}
         className={`w-full border rounded-md px-3 py-2 text-sm ${prClass} ${
           readOnly
             ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'

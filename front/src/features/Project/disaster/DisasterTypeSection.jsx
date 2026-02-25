@@ -1,4 +1,4 @@
-import { SectionTitle } from "../../../components/common/SectionTitle.jsx"
+import SectionTitle from "../../../components/common/SectionTitle.jsx"
 
 function DisasterType({label, img, isSelected, onClick}) {
   return (

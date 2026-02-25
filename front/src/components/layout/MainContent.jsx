@@ -1,29 +1,24 @@
-import MainHeader from "./MainHeader.jsx";
-import ProjectAddButton from "../common/ProjectAddButton.jsx";
-import DocumentIcon from "../common/DocumentIcon.jsx";
 import EmptyProject from "../../features/Project/pages/EmptyProject.jsx";
-import CreateProject from "../../features/Project/pages/CreateProject.jsx"
+import Project from "../../features/Project/pages/Project.jsx";
 
 export default function MainContent({
-  mainName,
   viewMode,
-  selectedProject,
-  onCreateProject
+  selectedProjectData,
+  onCreateProject,
+  onCancelCreate,
 }) {
   return (
     <div className="flex-1 flex flex-col bg-gray-50">
-      <MainHeader mainName={mainName} />
-
-      {viewMode === 'empty' && (
-        <EmptyProject onCreateProject={onCreateProject} />
-      )}
-
-      {viewMode === 'create' && (
-        <CreateProject
-
-        />
-      )}
-
+      <div className="flex-1 flex flex-col overflow-y-auto">
+        {viewMode ? (
+          <Project
+            onCancel={onCancelCreate}
+            selectedProject={selectedProjectData}
+          />
+        ) : (
+          <EmptyProject onCreateProject={onCreateProject} />
+        )}
+      </div>
     </div>
   );
 }

@@ -1,7 +1,13 @@
-import { SectionSubTitle } from "../../../components/common/SectionSubTitle.jsx";
-import { InputField } from "../../../components/common/InputField.jsx";
+import SectionSubTitle from "../../../components/common/SectionSubTitle.jsx";
+import InputField from "../../../components/common/InputField.jsx";
 
-export default function RadiusInput({label, value, onChange, defaultValue}) {
+export default function RadiusInput({
+  label,
+  value,
+  onChange,
+  onBlur,
+  defaultValue,
+}) {
   return (
     <div>
       <SectionSubTitle>
@@ -13,6 +19,7 @@ export default function RadiusInput({label, value, onChange, defaultValue}) {
           type="number"
           value={value}
           onChange={onChange}
+          onBlur={onBlur}
           unit="km"
           maxValue={defaultValue}
         />
