@@ -1,84 +1,62 @@
-from typing import List, Literal, Union
+from typing import Union
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends
 
-from ..schemas.position import (
-    MesoPosition,
-    MicroPosition,
-    PositionQueryParams,
-    WalkingPosition,
-)
-from ..services.position import PositionService
+from ..schemas.exceptions import AppException
+from ..schemas.position import *
+from ..services.position import CacheService, PositionService
 
 router = APIRouter(prefix="/position")
 
-PositionItem = Union[MesoPosition, MicroPosition, WalkingPosition]
+RESPONSE_MODEL_MAP = {
+    "nuclear": NuclearPositionApiResponse,
+    "chemistry": ChemistryPositionApiResponse,
+    "storm": WalkingPositionApiResponse,
+    "flood": WalkingPositionApiResponse,
+}
 
 
-def get_position_params(
-    directory: str,
-    time: str,
-    disaster_type: Literal["nuclear", "chemistry", "storm", "flood", "complex"] = Query(
-        ..., description="재난 종류"
-    ),
-) -> PositionQueryParams:
-    return PositionQueryParams(
-        directory=directory, time=time, disaster_type=disaster_type
+@router.post(
+    "/upload/{disaster_type}/{directory}",
+    summary="Redis 프로젝트 업로드",
+    response_model=PositionUploadApiResponse,
+)
+async def upload_position_data(
+    disaster_type: str = Path(..., description="재난 종류"),
+    directory: str = Path(..., description="프로젝트 폴더명"),
+):
+    first_time, last_time, position_data = CacheService.preload_position(
+        disaster_type, directory
+    )
+    PositionService.upload_data(directory, position_data)
+
+    return PositionUploadApiResponse(
+        success=True,
+        message="Redis 업로드 성공",
+        data=UploadPosition(first_time=first_time, last_time=last_time),
     )
 
 
-def convert_to_position_model(
-    raw_data: List[dict],
-    disaster_type: str,
-) -> List[PositionItem]:
-    result: List[PositionItem] = []
-
-    for item in raw_data:
-        try:
-            if disaster_type == "nuclear":
-                result.append(MesoPosition(**item))
-
-            elif disaster_type == "chemistry":
-                if item.get("mode") is not None:
-                    result.append(MicroPosition(**item))
-                else:
-                    result.append(MesoPosition(**item))
-
-            elif disaster_type in ("flood", "storm"):
-                result.append(WalkingPosition(**item))
-
-            elif disaster_type == "complex":
-                result.append(MesoPosition(**item))
-
-        except Exception as e:
-            print(f"데이터 변환 실패: {e}, item: {item}")
-            continue
-
-    return result
-
-
 @router.get(
-    "/{directory}/{time}",
-    summary="특정 시간의 위치 데이터 조회",
-    response_model=List[PositionItem],
+    "/{disaster_type}",
+    summary="위치 데이터 조회",
+    response_model=Union[
+        NuclearPositionApiResponse,
+        ChemistryPositionApiResponse,
+        WalkingPositionApiResponse,
+    ],
 )
-async def get_position_data(
-    params: PositionQueryParams = Depends(get_position_params),
-):
-    try:
-        raw_data = PositionService.get_position_at_time(
-            params.directory, params.time, params.disaster_type
-        )
+async def get_position(params: PositionQueryParams = Depends()):
+    position_data = PositionService.get_position_data(
+        params.disaster_type, params.directory, params.time
+    )
 
-        if not raw_data:
-            return []
+    response_cls = RESPONSE_MODEL_MAP.get(params.disaster_type)
+    if not response_cls:
+        raise AppException(400, f"지원하지 않는 재난 종류: {params.disaster_type}")
 
-        converted_data = convert_to_position_model(raw_data, params.disaster_type)
-        return converted_data
-
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"서버 오류: {str(e)}")
+    return response_cls(
+        success=True,
+        message=f"{params.disaster_type} 위치 데이터 조회",
+        data=position_data,
+    )
