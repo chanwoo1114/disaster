@@ -35,7 +35,7 @@ export function addRoadGeometry(map, geoJson) {
   const vectorLayer = new window.ol.layer.Vector({
     source: vectorSource,
     style: roadStyle,
-    zindex: 200
+    zIndex: 200
   });
 
   map.addLayer(vectorLayer);

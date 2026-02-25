@@ -34,15 +34,3 @@ export function createDisasterPayload(data) {
   };
 }
 
-// 재난 타입 확인
-export function isNuclearDisaster(disasterType) {
-  return disasterType === "nuclear";
-}
-
-// 좌표 추출
-export function extractCoordinates(data) {
-  return {
-    longitude: parseFloat(data.coordinates.x),
-    latitude: parseFloat(data.coordinates.y)
-  };
-}

@@ -122,7 +122,6 @@ export default function Register() {
         selectedProjectData={projectData.find(p => p.id === selectedProject) || null}
         onCreateProject={handleCreateProject}
         onCancelCreate={handleCancelCreate}
-        on
       />
     </div>
   );

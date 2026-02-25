@@ -66,8 +66,6 @@ export default function Project({ onCancel, selectedProject, onSuccess }) {
   const Wrapper = isViewMode ? 'div' : 'form';
   const wrapperProps = isViewMode ? {} : { onSubmit: handleSubmit(formHook.onSubmit) };
 
-  console.log(selectedProject)
-
   return (
     <div className="flex flex-col h-full">
       <Wrapper {...wrapperProps} className="flex flex-col h-full">

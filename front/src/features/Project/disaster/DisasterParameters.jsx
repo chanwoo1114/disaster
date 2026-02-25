@@ -50,7 +50,6 @@ export default function DisasterParameters({
             value={disasterParams[field.key]}
             onChange={(e) => onParamChange(field.key, e.target.value)}
             defaultValue={field.defaultValue}
-            max={field.max}
           />
         ))}
       </div>
