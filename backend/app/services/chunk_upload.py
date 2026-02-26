@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import shutil
 import uuid
@@ -7,6 +8,9 @@ from pathlib import Path
 from typing import Tuple
 
 from .. import config
+from ..schemas.exceptions import AppException
+
+logger = logging.getLogger(__name__)
 
 
 class ChunkUploadService:
@@ -40,11 +44,12 @@ class ChunkUploadService:
     def create_session(self, file_name, total_chunks, total_size):
         """업로드 세션 생성"""
         if not file_name.lower().endswith(".zip"):
-            raise ValueError("ZIP 파일만 업로드 가능합니다")
+            raise AppException(400, "ZIP 파일만 업로드 가능합니다")
 
         if total_size > config.MAX_FILE_SIZE:
-            raise ValueError(
-                f"파일 크기는 {config.MAX_FILE_SIZE // (1024 * 1024)}MB를 초과할 수 없습니다"
+            raise AppException(
+                400,
+                f"파일 크기는 {config.MAX_FILE_SIZE // (1024 * 1024)}MB를 초과할 수 없습니다",
             )
 
         upload_id = str(uuid.uuid4())
@@ -72,15 +77,15 @@ class ChunkUploadService:
         sessions = self._load_sessions()
 
         if upload_id not in sessions:
-            raise ValueError("유효하지 않은 업로드 세션입니다")
+            raise AppException(400, "유효하지 않은 업로드 세션입니다")
 
         session = sessions[upload_id]
 
         if chunk_index < 0 or chunk_index >= session["total_chunks"]:
-            raise ValueError(f"유호하지 않은 청크 인덱스입니다. {chunk_index}")
+            raise AppException(400, f"유효하지 않은 청크 인덱스입니다. {chunk_index}")
 
         if chunk_index in session["received_chunks"]:
-            raise ValueError(f"이미 업로드된 청크입니다: {chunk_index}")
+            raise AppException(400, f"이미 업로드된 청크입니다: {chunk_index}")
 
         chunk_dir = self.chunks_path / upload_id
 
@@ -110,7 +115,7 @@ class ChunkUploadService:
         sessions = self._load_sessions()
 
         if upload_id not in sessions:
-            raise ValueError("유효하지 않은 업로드 세션입니다")
+            raise AppException(400, "유효하지 않은 업로드 세션입니다")
 
         session = sessions[upload_id]
         total_chunks = session["total_chunks"]
@@ -118,7 +123,9 @@ class ChunkUploadService:
 
         if len(received) != total_chunks:
             missing = set(range(total_chunks)) - set(received)
-            raise ValueError(f"아직 업로드되지 않은 청크가 있습니다: {sorted(missing)}")
+            raise AppException(
+                400, f"아직 업로드되지 않은 청크가 있습니다: {sorted(missing)}"
+            )
 
         chunk_dir = self.chunks_path / upload_id
         output_file = self.complete_path / f"{upload_id}_{session['file_name']}"

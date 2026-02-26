@@ -31,7 +31,7 @@ class PositionQueryParams:
             examples=["nuclear", "chemistry", "storm", "flood"],
         ),
         directory: str = Query(..., description="경로"),
-        time: str = Query(..., description="시간"),
+        time: int = Query(..., description="시간"),
     ):
         self.disaster_type = disaster_type
         self.directory = directory
@@ -42,8 +42,8 @@ class BasePosition(BaseModel):
     """위치 조회 응답 공통 필드"""
 
     time: int = Field(..., description="시간")
-    x: float = Field(..., description="X 좌표(경도)")
-    y: float = Field(..., description="Y 좌표(위도)")
+    lng: float = Field(..., description="X 좌표(경도)")
+    lat: float = Field(..., description="Y 좌표(위도)")
     direction: float = Field(..., ge=0, le=360, description="방향")
 
 
@@ -79,8 +79,8 @@ class NuclearPositionApiResponse(ApiResponse[List[NuclearPosition]]):
                 "data": [
                     {
                         "time": 100,
-                        "x": 127.0,
-                        "y": 36.5,
+                        "lng": 127.0,
+                        "lat": 36.5,
                         "direction": 90.0,
                         "veh_id": 1,
                         "occupancy": 3,
@@ -99,8 +99,8 @@ class ChemistryPositionApiResponse(ApiResponse[List[ChemistryPosition]]):
                 "data": [
                     {
                         "time": 100,
-                        "x": 127.0,
-                        "y": 36.5,
+                        "lng": 127.0,
+                        "lat": 36.5,
                         "direction": 90.0,
                         "veh_id": 1,
                         "occupancy": 3,
@@ -121,8 +121,8 @@ class WalkingPositionApiResponse(ApiResponse[List[WalkingPosition]]):
                 "data": [
                     {
                         "time": 100,
-                        "x": 127.0,
-                        "y": 36.5,
+                        "lng": 127.0,
+                        "lat": 36.5,
                         "direction": 90.0,
                         "person_id": 1,
                         "speed": 5,

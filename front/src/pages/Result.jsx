@@ -7,6 +7,7 @@ import {
   getDisasterGeometry,
   getDisasterLinkGeometry,
   postUploadLocation,
+  getPositionData,
 } from "../services/api.js";
 import {
   buildBufferParams,
@@ -14,24 +15,15 @@ import {
   positionUploadParams,
 } from "../utils/apiParams.js";
 import { addRoadGeometry, addDisasterGeometry } from "../utils/mapGeometry.js";
+import { timeToSeconds, secondsToHHMMSS, formatSeconds } from "../utils/timeUtils.js";
+import { initPositionLayer, updatePositions } from "../utils/mapPosition.js";
 
-// HHMMSS → 초
-const timeToSeconds = (time) => {
-  const str = String(time).padStart(6, "0");
-  return (
-    parseInt(str.slice(0, 2)) * 3600 +
-    parseInt(str.slice(2, 4)) * 60 +
-    parseInt(str.slice(4, 6))
-  );
-};
 
-// 초 → "HH:MM:SS"
-const formatSeconds = (sec) => {
-  if (sec === null || sec === undefined) return "00:00:00";
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+const DISASTER_LABEL = {
+  nuclear: "방사능",
+  chemistry: "화학",
+  storm: "태풍",
+  flood: "홍수",
 };
 
 export default function Result() {
@@ -88,6 +80,7 @@ export default function Result() {
       location.state.project.lng,
       location.state.project.lat
     );
+    initPositionLayer(mapInstance.current);
   }, []);
 
   // 데이터 로드
@@ -158,6 +151,26 @@ export default function Result() {
     }
     return () => clearInterval(intervalRef.current);
   }, [isPlaying, speed, lastTime]);
+
+  // 위치 데이터 조회
+  useEffect(() => {
+    if (currentTime === firstTime || !isLoaded) return;
+
+    const fetchPosition = async () => {
+      try {
+        const response = await getPositionData(
+          location.state.project.disasterType,
+          location.state.project.uploadId,
+          currentTime
+        );
+        updatePositions(response.data);
+      } catch (error) {
+        console.log(error)
+      }
+    }
+
+    fetchPosition();
+  }, [currentTime]);
 
   return (
     <div className="relative h-screen">
@@ -238,7 +251,7 @@ export default function Result() {
         {/* 정보 */}
         <div className="flex items-center gap-2.5 shrink-0">
           <span className="text-[12px] text-slate-400">
-            재난 <span className="text-slate-700 font-semibold">화학</span>
+            재난 <span className="text-slate-700 font-semibold">{DISASTER_LABEL[location.state.project.disasterType]}</span>
           </span>
           <span className="text-[12px] text-slate-400">
             차량 <span className="text-slate-700 font-semibold">1,024</span>

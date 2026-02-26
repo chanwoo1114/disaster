@@ -1,3 +1,4 @@
+import logging
 from typing import Dict, List, Optional
 
 import geopandas as gpd
@@ -8,7 +9,10 @@ from shapely.ops import transform
 from shapely.strtree import STRtree
 
 from ..config import DATA_DIR
+from ..schemas.exceptions import AppException
 from .disaster_geometry import _TO_METERS, _TO_WGS84
+
+logger = logging.getLogger(__name__)
 
 
 class RoadGeometry:
@@ -20,6 +24,12 @@ class RoadGeometry:
     def load_road_data(cls) -> gpd.GeoDataFrame:
         if cls._road_data_4326 is None:
             csv_path = DATA_DIR / "link.csv"
+
+            if not csv_path.exists():
+                raise AppException(
+                    404, f"도로 데이터 파일을 찾을 수 없습니다: {csv_path}"
+                )
+
             df = pd.read_csv(csv_path, usecols=["link_id", "geom", "cartrk_co"])
 
             df["geometry"] = df["geom"].apply(wkt.loads)

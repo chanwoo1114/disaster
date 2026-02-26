@@ -1,4 +1,5 @@
 import json
+import logging
 from collections import defaultdict
 
 import pandas as pd
@@ -7,9 +8,20 @@ from ..config import PROJECTS_DIR, REDIS_TTL
 from ..schemas.exceptions import AppException
 from .redis_config import get_redis_client
 
-MESO_COLUMNS = ["time", "veh_id", "occupancy", "direction", "x", "y"]
-MICRO_COLUMNS = ["time", "veh_id", "direction", "x", "y", "speed", "mode", "occupancy"]
-WALKING_COLUMNS = ["time", "person_id", "direction", "x", "y", "speed"]
+logger = logging.getLogger(__name__)
+
+MESO_COLUMNS = ["time", "veh_id", "occupancy", "direction", "lng", "lat"]
+MICRO_COLUMNS = [
+    "time",
+    "veh_id",
+    "direction",
+    "lng",
+    "lat",
+    "speed",
+    "mode",
+    "occupancy",
+]
+WALKING_COLUMNS = ["time", "person_id", "direction", "lng", "lat", "speed"]
 
 DISASTER_COLUMNS_MAP = {
     "nuclear": MESO_COLUMNS,
@@ -84,7 +96,6 @@ class PositionService:
     def get_position_data(disaster_type: str, directory: str, time: int):
         redis_client = get_redis_client()
         key = PositionService._build_redis_key(directory, time)
-
         value = redis_client.get(key)
 
         if value:

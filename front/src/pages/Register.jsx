@@ -102,6 +102,27 @@ export default function Register() {
     setViewMode(false);
   }
 
+  // 프로젝트 생성/삭제 성공 시 목록 갱신
+  const handleSuccess = () => {
+    setSelectedProject(null);
+    setViewMode(false);
+    setLoading(true);
+    setHasMore(true);
+    getProjectData(1, limit)
+      .then((response) => {
+        if (response?.success && response?.data?.length > 0) {
+          setProjectData(response.data);
+          setPage(1);
+          setHasMore(response.data.length >= limit);
+        } else {
+          setProjectData([]);
+          setHasMore(false);
+        }
+      })
+      .catch((error) => console.error('데이터 로딩 실패', error))
+      .finally(() => setLoading(false));
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
       {/* 왼쪽 사이드바 영역 */}
@@ -122,6 +143,7 @@ export default function Register() {
         selectedProjectData={projectData.find(p => p.id === selectedProject) || null}
         onCreateProject={handleCreateProject}
         onCancelCreate={handleCancelCreate}
+        onSuccess={handleSuccess}
       />
     </div>
   );

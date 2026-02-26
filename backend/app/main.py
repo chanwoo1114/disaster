@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -13,7 +14,15 @@ from .services.redis_config import redis_config
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Redis 연결 확인"""
+    redis_config()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 @app.exception_handler(AppException)
@@ -23,6 +32,36 @@ async def app_exception_handler(request: Request, exc: AppException):
         content={
             "success": False,
             "message": exc.message,
+            "data": None,
+        },
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = exc.errors()
+    messages = []
+    for error in errors:
+        loc = " → ".join(str(l) for l in error["loc"] if l != "body")
+        messages.append(f"{loc}: {error['msg']}")
+
+    return JSONResponse(
+        status_code=422,
+        content={
+            "success": False,
+            "message": "; ".join(messages),
+            "data": None,
+        },
+    )
+
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError):
+    return JSONResponse(
+        status_code=400,
+        content={
+            "success": False,
+            "message": str(exc),
             "data": None,
         },
     )
@@ -38,12 +77,6 @@ async def global_exception_handler(request: Request, exc: Exception):
             "data": None,
         },
     )
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Redis 연결 확인"""
-    redis_config()
 
 
 app.add_middleware(

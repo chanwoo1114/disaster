@@ -4,6 +4,7 @@ from fastapi import Query
 from pydantic import BaseModel, Field
 
 from .common import ApiResponse
+from .exceptions import AppException
 
 
 class NuclearQueryParams:
@@ -44,36 +45,39 @@ class NuclearQueryParams:
                 self.analysis_distance,
             ]
         ):
-            raise ValueError("최소 하나 이상의 거리 값을 입력해야 합니다.")
+            raise AppException(400, "최소 하나 이상의 거리 값을 입력해야 합니다.")
 
         if self.paz_distance is not None and self.upz_distance is not None:
             if self.upz_distance < self.paz_distance:
-                raise ValueError(
-                    "upz_distance는 paz_distance보다 크거나 같아야 합니다."
+                raise AppException(
+                    400, "upz_distance는 paz_distance보다 크거나 같아야 합니다."
                 )
 
         if self.upz_wind_distance is not None:
             if self.paz_distance is None or self.upz_distance is None:
-                raise ValueError(
-                    "upz_wind_distance를 사용하려면 paz_distance와 upz_distance가 필요합니다."
+                raise AppException(
+                    400,
+                    "upz_wind_distance를 사용하려면 paz_distance와 upz_distance가 필요합니다.",
                 )
 
             upz_wind = self.upz_wind_distance
             if not (self.paz_distance <= upz_wind <= self.upz_distance):
-                raise ValueError(
-                    "upz_wind_distance는 paz_distance 이상 upz_distance 이하여야 합니다."
+                raise AppException(
+                    400,
+                    "upz_wind_distance는 paz_distance 이상 upz_distance 이하여야 합니다.",
                 )
 
         if self.shadow_distance is not None and self.upz_distance is not None:
             if not (self.upz_distance <= self.shadow_distance <= 45):
-                raise ValueError(
-                    "shadow_distance는 upz_distance 이상 45이하여야 합니다."
+                raise AppException(
+                    400, "shadow_distance는 upz_distance 이상 45이하여야 합니다."
                 )
 
         if self.analysis_distance is not None and self.shadow_distance is not None:
             if not (self.shadow_distance <= self.analysis_distance <= 50):
-                raise ValueError(
-                    "analysis_distance는 shadow_distance 이상 50이하여야 합니다."
+                raise AppException(
+                    400,
+                    "analysis_distance는 shadow_distance 이상 50이하여야 합니다.",
                 )
 
 
@@ -103,15 +107,17 @@ class DisasterQueryParams:
 
         max_disaster = max_disaster_distance.get(self.disaster_type, 10)
         if self.disaster_distance > max_disaster:
-            raise ValueError(
-                f"{self.disaster_type} 재난의 disaster_distance는 {max_disaster}km 이하여야 합니다."
+            raise AppException(
+                400,
+                f"{self.disaster_type} 재난의 disaster_distance는 {max_disaster}km 이하여야 합니다.",
             )
 
         max_analysis = max_analysis_distance.get(self.disaster_type, 15)
         if not (self.disaster_distance <= self.analysis_distance <= max_analysis):
-            raise ValueError(
+            raise AppException(
+                400,
                 f"{self.disaster_type} 재난의 analysis_distance는 "
-                f"disaster_distance({self.disaster_distance}) 이상 {max_analysis}km 이하여야 합니다."
+                f"disaster_distance({self.disaster_distance}) 이상 {max_analysis}km 이하여야 합니다.",
             )
 
 

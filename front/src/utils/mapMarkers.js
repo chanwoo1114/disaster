@@ -45,15 +45,3 @@ export const removeMarker = (mapInstance, markerLayer) => {
     mapInstance.removeLayer(markerLayer);
   }
 };
-
-// 모든 마커 제거
-export const clearAllMarkers = (mapInstance) => {
-  if (!mapInstance) return;
-
-  const layers = mapInstance.getLayers().getArray();
-  layers.forEach(layer => {
-    if (layer instanceof window.ol.layer.Vector) {
-      mapInstance.removeLayer(layer);
-    }
-  });
-};

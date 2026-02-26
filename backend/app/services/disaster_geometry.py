@@ -1,3 +1,4 @@
+import logging
 import math
 from typing import Dict, List
 
@@ -6,13 +7,15 @@ from shapely.geometry import Point, Polygon, mapping
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform
 
+logger = logging.getLogger(__name__)
+
 # 모듈 레벨 Transformer 캐싱 (앱 전체에서 2회만 생성)
 _TO_METERS = Transformer.from_crs("EPSG:4326", "EPSG:5179", always_xy=True).transform
 _TO_WGS84 = Transformer.from_crs("EPSG:5179", "EPSG:4326", always_xy=True).transform
 
 # 상수
 NUM_SECTORS = 16
-SECTOR_ANGLE = 360.0 / NUM_SECTORS  # 22.5
+SECTOR_ANGLE = 360.0 / NUM_SECTORS
 
 
 class DisasterGeometryService:
@@ -134,6 +137,7 @@ class DisasterGeometryService:
         point_meters = DisasterGeometryService._transform_to_meters(point)
 
         result = {
+            "centroid": mapping(point),
             "paz_geometry": None,
             "upz_geometry": None,
             "upz_wind_geometry": None,

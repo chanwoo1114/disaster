@@ -25,3 +25,9 @@
         z-index: -1;
     }
 }
+
+.ol-scale-line,
+.ol-attribution,
+.ol-zoom {
+    display: none !important;
+}

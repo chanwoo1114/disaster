@@ -6,6 +6,7 @@ export default function MainContent({
   selectedProjectData,
   onCreateProject,
   onCancelCreate,
+  onSuccess,
 }) {
   return (
     <div className="flex-1 flex flex-col bg-gray-50">
@@ -14,6 +15,7 @@ export default function MainContent({
           <Project
             onCancel={onCancelCreate}
             selectedProject={selectedProjectData}
+            onSuccess={onSuccess}
           />
         ) : (
           <EmptyProject onCreateProject={onCreateProject} />

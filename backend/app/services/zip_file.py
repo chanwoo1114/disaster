@@ -1,3 +1,4 @@
+import logging
 import shutil
 import uuid
 import zipfile
@@ -5,6 +6,10 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from fastapi import UploadFile
+
+from ..schemas.exceptions import AppException
+
+logger = logging.getLogger(__name__)
 
 
 class ZipFileService:
@@ -48,13 +53,17 @@ class ZipFileService:
                     if total_size > max_size:
                         buffer.close()
                         temp_file_path.unlink(missing_ok=True)
-                        raise ValueError(
-                            f"파일 크기는 {max_size // (1024 * 1024)}MB를 초과할 수 없습니다"
+                        raise AppException(
+                            400,
+                            f"파일 크기는 {max_size // (1024 * 1024)}MB를 초과할 수 없습니다",
                         )
 
                     buffer.write(chunk)
 
             return temp_file_path, total_size
+
+        except AppException:
+            raise
 
         except Exception as e:
             if temp_file_path.exists():

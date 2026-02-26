@@ -54,10 +54,17 @@ export async function postSessionClear(data) {
 }
 
 // 청크 업로드 (FormData)
-export async function postUploadChunkSession(formData) {
+export async function postUploadChunkSession(formData, params) {
   const response = await apiClient.post('/project/upload/chunk', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
+    headers: { 'Content-Type': 'multipart/form-data' },
+    params,
   });
+  return response.data;
+}
+
+// 프로젝트 삭제
+export async function deleteProject(projectId) {
+  const response = await apiClient.delete(`/project/${projectId}`);
   return response.data;
 }
 
@@ -88,5 +95,13 @@ export async function getDisasterLinkGeometry(data) {
 // 위치 데이터 업로드
 export async function postUploadLocation(data) {
   const response = await apiClient.post(`/position/upload/${data.disasterType}/${data.directory}`);
+  return response.data;
+}
+
+// 위치 데이터 조회
+export async function getPositionData(disasterType, directory, time) {
+  const response = await apiClient.get(`/position/${disasterType}`, {
+    params: { directory, time }
+    });
   return response.data;
 }

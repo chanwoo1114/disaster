@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { deleteProject } from "../../../services/api.js";
 import { disasterTypes } from "../../../data/disasters.js";
 import { locationsByDisaster } from "../../../data/locations.js";
 import DisasterTypeSection from "../disaster/DisasterTypeSection.jsx";
@@ -53,10 +54,14 @@ export default function Project({ onCancel, selectedProject, onSuccess }) {
 
   const noop = () => {};
 
-  const handleDelete = () => {
-    if (window.confirm('정말 삭제하시겠습니까?')) {
-      formHook.resetForm();
-      onCancel();
+  const handleDelete = async () => {
+    if (!window.confirm('정말 삭제하시겠습니까?')) return;
+    try {
+      await deleteProject(selectedProject.id);
+      if (onSuccess) onSuccess();
+    } catch (error) {
+      console.error('프로젝트 삭제 실패', error);
+      alert('프로젝트 삭제에 실패했습니다.');
     }
   };
 
@@ -235,7 +240,14 @@ export default function Project({ onCancel, selectedProject, onSuccess }) {
 
         {/* 하단 바 */}
         {isViewMode ? (
-          <div className="h-16 border-t border-gray-200 bg-white px-6 py-4 flex items-center justify-end">
+          <div className="h-16 border-t border-gray-200 bg-white px-6 py-4 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="px-6 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+            >
+              삭제
+            </button>
             <button
               type="button"
               onClick={() => navigate('/result', { state: { project: selectedProject } })}
@@ -253,14 +265,6 @@ export default function Project({ onCancel, selectedProject, onSuccess }) {
               className="px-6 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               취소
-            </button>
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={formHook.isSubmitting}
-              className="px-6 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              삭제
             </button>
             <button
               type="submit"
