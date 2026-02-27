@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from ..schemas.road import RoadApiResponse, RoadQueryParams, RoadResponse
-from ..services.road_geometry import RoadGeometry
+from ..services import road_geometry
 
 router = APIRouter(prefix="/road")
 
@@ -10,7 +10,7 @@ router = APIRouter(prefix="/road")
     "/geometry", response_model=RoadApiResponse, summary="재난 범위 도로 조회 API"
 )
 async def create_road_geometry(params: RoadQueryParams = Depends()):
-    features = RoadGeometry.get_roads_geometry(
+    features = road_geometry.get_roads_geometry(
         params.lng, params.lat, params.disaster_type, params.analysis_distance
     )
 

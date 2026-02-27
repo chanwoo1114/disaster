@@ -11,7 +11,7 @@ from ..schemas.position import (
     UploadPosition,
     WalkingPositionApiResponse,
 )
-from ..services.position import CacheService, PositionService
+from ..services import position as position_service
 
 router = APIRouter(prefix="/position")
 
@@ -32,10 +32,10 @@ async def upload_position_data(
     disaster_type: str = Path(..., description="재난 종류"),
     directory: str = Path(..., description="프로젝트 폴더명"),
 ):
-    first_time, last_time, position_data = CacheService.preload_position(
+    first_time, last_time, position_data = position_service.preload_position(
         disaster_type, directory
     )
-    PositionService.upload_data(directory, position_data)
+    position_service.upload_data(directory, position_data)
 
     return PositionUploadApiResponse(
         success=True,
@@ -54,7 +54,7 @@ async def upload_position_data(
     ],
 )
 async def get_position(params: PositionQueryParams = Depends()):
-    position_data = PositionService.get_position_data(
+    position_data = position_service.get_position_data(
         params.disaster_type, params.directory, params.time
     )
 

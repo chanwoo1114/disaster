@@ -8,7 +8,7 @@ from ..schemas.geometry import (
     NuclearBufferData,
     NuclearQueryParams,
 )
-from ..services.disaster_geometry import DisasterGeometryService
+from ..services import disaster_geometry
 
 router = APIRouter(prefix="/geometry")
 
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/geometry")
     summary="방사능 대피 범위 조회 API",
 )
 async def create_nuclear_buffer(params: NuclearQueryParams = Depends()):
-    result = DisasterGeometryService.create_nuclear_buffer(
+    result = disaster_geometry.create_nuclear_buffer(
         lng=params.lng,
         lat=params.lat,
         paz_distance=params.paz_distance,
@@ -43,7 +43,7 @@ async def create_nuclear_buffer(params: NuclearQueryParams = Depends()):
     summary="일반 재난 범위 조회 API",
 )
 async def create_disaster_buffer(params: DisasterQueryParams = Depends()):
-    result = DisasterGeometryService.create_disaster_buffer(
+    result = disaster_geometry.create_disaster_buffer(
         lng=params.lng,
         lat=params.lat,
         disaster_distance=params.disaster_distance,

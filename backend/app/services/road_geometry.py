@@ -48,227 +48,227 @@ class RoadGeometry:
             cls.load_road_data()
         return cls._spatial_index
 
-    @staticmethod
-    def _filter_intersected_roads(
-        roads: gpd.GeoDataFrame, candidate_indices: list, buffer_geometry
-    ) -> gpd.GeoDataFrame:
-        if len(candidate_indices) == 0:
-            return gpd.GeoDataFrame()
 
-        candidates = roads.iloc[candidate_indices]
-        mask = candidates.intersects(buffer_geometry)
-        filtered = candidates[mask]
+def _filter_intersected_roads(
+    roads: gpd.GeoDataFrame, candidate_indices: list, buffer_geometry
+) -> gpd.GeoDataFrame:
+    if len(candidate_indices) == 0:
+        return gpd.GeoDataFrame()
 
-        if filtered.empty:
-            return gpd.GeoDataFrame()
+    candidates = roads.iloc[candidate_indices]
+    mask = candidates.intersects(buffer_geometry)
+    filtered = candidates[mask]
 
-        return gpd.GeoDataFrame(filtered, crs=roads.crs)
+    if filtered.empty:
+        return gpd.GeoDataFrame()
 
-    @staticmethod
-    def _apply_offset_curve(geometry, offset):
-        """MultiLineString과 LineString 모두 처리"""
-        if isinstance(geometry, MultiLineString):
-            offset_lines = []
-            for line in geometry.geoms:
-                try:
-                    offset_line = line.offset_curve(offset)
-                    if not offset_line.is_empty:
-                        offset_lines.append(offset_line)
-                except (ValueError, TypeError):
-                    continue
+    return gpd.GeoDataFrame(filtered, crs=roads.crs)
 
-            if not offset_lines:
-                return None
 
-            return (
-                MultiLineString(offset_lines)
-                if len(offset_lines) > 1
-                else offset_lines[0]
+def _apply_offset_curve(geometry, offset):
+    """MultiLineString과 LineString 모두 처리"""
+    if isinstance(geometry, MultiLineString):
+        offset_lines = []
+        for line in geometry.geoms:
+            try:
+                offset_line = line.offset_curve(offset)
+                if not offset_line.is_empty:
+                    offset_lines.append(offset_line)
+            except (ValueError, TypeError) as e:
+                logger.warning(
+                    f"offset_curve 실패 (MultiLineString, offset={offset}): {e}"
+                )
+                continue
+
+        if not offset_lines:
+            return None
+
+        return (
+            MultiLineString(offset_lines) if len(offset_lines) > 1 else offset_lines[0]
+        )
+
+    elif isinstance(geometry, LineString):
+        try:
+            return geometry.offset_curve(offset)
+        except (ValueError, TypeError) as e:
+            logger.warning(f"offset_curve 실패 (LineString, offset={offset}): {e}")
+            return None
+
+    return None
+
+
+def _convert_to_features(
+    gdf: gpd.GeoDataFrame, properties_keys: List[str]
+) -> List[Dict]:
+    features = []
+    for _, row in gdf.iterrows():
+        feature = {
+            "type": "Feature",
+            "properties": {},
+            "geometry": row.geometry.__geo_interface__,
+        }
+
+        for key in properties_keys:
+            if key in row:
+                value = row[key]
+                if isinstance(value, (int, float)):
+                    feature["properties"][key] = (
+                        int(value) if key == "link_id" else bool(value)
+                    )
+                else:
+                    feature["properties"][key] = value
+
+        features.append(feature)
+
+    return features
+
+
+def _extract_intersected_roads(
+    roads: gpd.GeoDataFrame, candidate_indices: list, buffer_geometry
+) -> List[Dict]:
+    """Meso 레벨: 도로 중심선만 추출"""
+    filtered_roads = _filter_intersected_roads(
+        roads, candidate_indices, buffer_geometry
+    )
+
+    if filtered_roads.empty:
+        return []
+
+    return _convert_to_features(filtered_roads, ["link_id"])
+
+
+def _create_micro_link(
+    roads_4326: gpd.GeoDataFrame,
+    roads_5179: gpd.GeoDataFrame,
+    candidate_indices: list,
+    buffer_geometry,
+) -> List[Dict]:
+    filtered_roads = _filter_intersected_roads(
+        roads_4326, candidate_indices, buffer_geometry
+    )
+
+    if filtered_roads.empty:
+        return []
+
+    filtered_indices = filtered_roads.index
+    filtered_roads_5179 = roads_5179.loc[filtered_indices]
+
+    max_lanes = (
+        int(filtered_roads_5179["cartrk_co"].max())
+        if "cartrk_co" in filtered_roads_5179.columns
+        else 2
+    )
+
+    all_features = []
+    for _, road in filtered_roads_5179.iterrows():
+        lanes = int(road.get("cartrk_co", 2))
+
+        # 첫 번째 차선
+        offset_geom = _apply_offset_curve(road.geometry, 5.5)
+        if offset_geom:
+            all_features.append(
+                {
+                    "link_id": road["link_id"],
+                    "geometry": offset_geom,
+                    "lanes": lanes,
+                    "lane_ty": True,
+                }
             )
 
-        elif isinstance(geometry, LineString):
-            try:
-                return geometry.offset_curve(offset)
-            except (ValueError, TypeError):
-                return None
-
-        return None
-
-    @staticmethod
-    def _convert_to_features(
-        gdf: gpd.GeoDataFrame, properties_keys: List[str]
-    ) -> List[Dict]:
-        features = []
-        for _, row in gdf.iterrows():
-            feature = {
-                "type": "Feature",
-                "properties": {},
-                "geometry": row.geometry.__geo_interface__,
-            }
-
-            for key in properties_keys:
-                if key in row:
-                    value = row[key]
-                    if isinstance(value, (int, float)):
-                        feature["properties"][key] = (
-                            int(value) if key == "link_id" else bool(value)
-                        )
-                    else:
-                        feature["properties"][key] = value
-
-            features.append(feature)
-
-        return features
-
-    @staticmethod
-    def _extract_intersected_roads(
-        roads: gpd.GeoDataFrame, candidate_indices: list, buffer_geometry
-    ) -> List[Dict]:
-        """Meso 레벨: 도로 중심선만 추출"""
-        filtered_roads = RoadGeometry._filter_intersected_roads(
-            roads, candidate_indices, buffer_geometry
-        )
-
-        if filtered_roads.empty:
-            return []
-
-        return RoadGeometry._convert_to_features(filtered_roads, ["link_id"])
-
-    @staticmethod
-    def _create_micro_link(
-        roads_5179: gpd.GeoDataFrame, candidate_indices: list, buffer_geometry
-    ) -> List[Dict]:
-        roads_4326 = RoadGeometry._road_data_4326
-        filtered_roads = RoadGeometry._filter_intersected_roads(
-            roads_4326, candidate_indices, buffer_geometry
-        )
-
-        if filtered_roads.empty:
-            return []
-
-        filtered_indices = filtered_roads.index
-        filtered_roads_5179 = roads_5179.loc[filtered_indices]
-
-        max_lanes = (
-            int(filtered_roads_5179["cartrk_co"].max())
-            if "cartrk_co" in filtered_roads_5179.columns
-            else 2
-        )
-
-        all_features = []
-        for _, road in filtered_roads_5179.iterrows():
-            lanes = int(road.get("cartrk_co", 2))
-
-            # 첫 번째 차선
-            offset_geom = RoadGeometry._apply_offset_curve(road.geometry, 5.5)
-            if offset_geom:
-                all_features.append(
-                    {
-                        "link_id": road["link_id"],
-                        "geometry": offset_geom,
-                        "lanes": lanes,
-                        "lane_ty": True,
-                    }
-                )
-
-            # 추가 차선
-            for lane_num in range(2, max_lanes + 1):
-                if lanes >= lane_num:
-                    offset_distance = 5.5 + (-3.6 * (lane_num - 1))
-                    offset_geom = RoadGeometry._apply_offset_curve(
-                        road.geometry, offset_distance
-                    )
-                    if offset_geom:
-                        all_features.append(
-                            {
-                                "link_id": road["link_id"],
-                                "geometry": offset_geom,
-                                "lanes": lanes,
-                                "lane_ty": (lane_num == lanes),
-                            }
-                        )
-
-        if not all_features:
-            return []
-
-        final_lanes = gpd.GeoDataFrame(all_features, crs="EPSG:5179").to_crs(
-            "EPSG:4326"
-        )
-        return RoadGeometry._convert_to_features(final_lanes, ["link_id", "lane_ty"])
-
-    @staticmethod
-    def _create_walking_link(
-        roads_5179: gpd.GeoDataFrame, candidate_indices: list, buffer_geometry
-    ) -> List[Dict]:
-        roads_4326 = RoadGeometry._road_data_4326
-        filtered_roads = RoadGeometry._filter_intersected_roads(
-            roads_4326, candidate_indices, buffer_geometry
-        )
-
-        if filtered_roads.empty:
-            return []
-
-        filtered_indices = filtered_roads.index
-        filtered_roads_5179 = roads_5179.loc[filtered_indices]
-
-        all_features = []
-        for _, road in filtered_roads_5179.iterrows():
-            lanes = int(road.get("cartrk_co", 2))
-            last_lane_offset = 5.5 + (-3.6 * (lanes - 1))
-
-            for offset, lane_ty in [
-                (last_lane_offset, True),
-                (last_lane_offset - 3.6, False),
-                (last_lane_offset - 7.2, True),
-            ]:
-                offset_geom = RoadGeometry._apply_offset_curve(road.geometry, offset)
+        # 추가 차선
+        for lane_num in range(2, max_lanes + 1):
+            if lanes >= lane_num:
+                offset_distance = 5.5 + (-3.6 * (lane_num - 1))
+                offset_geom = _apply_offset_curve(road.geometry, offset_distance)
                 if offset_geom:
                     all_features.append(
                         {
                             "link_id": road["link_id"],
                             "geometry": offset_geom,
-                            "lane_ty": lane_ty,
+                            "lanes": lanes,
+                            "lane_ty": (lane_num == lanes),
                         }
                     )
 
-        if not all_features:
-            return []
+    if not all_features:
+        return []
 
-        final_features = gpd.GeoDataFrame(all_features, crs="EPSG:5179").to_crs(
-            "EPSG:4326"
+    final_lanes = gpd.GeoDataFrame(all_features, crs="EPSG:5179").to_crs("EPSG:4326")
+    return _convert_to_features(final_lanes, ["link_id", "lane_ty"])
+
+
+def _create_walking_link(
+    roads_4326: gpd.GeoDataFrame,
+    roads_5179: gpd.GeoDataFrame,
+    candidate_indices: list,
+    buffer_geometry,
+) -> List[Dict]:
+    filtered_roads = _filter_intersected_roads(
+        roads_4326, candidate_indices, buffer_geometry
+    )
+
+    if filtered_roads.empty:
+        return []
+
+    filtered_indices = filtered_roads.index
+    filtered_roads_5179 = roads_5179.loc[filtered_indices]
+
+    all_features = []
+    for _, road in filtered_roads_5179.iterrows():
+        lanes = int(road.get("cartrk_co", 2))
+        last_lane_offset = 5.5 + (-3.6 * (lanes - 1))
+
+        for offset, lane_ty in [
+            (last_lane_offset, True),
+            (last_lane_offset - 3.6, False),
+            (last_lane_offset - 7.2, True),
+        ]:
+            offset_geom = _apply_offset_curve(road.geometry, offset)
+            if offset_geom:
+                all_features.append(
+                    {
+                        "link_id": road["link_id"],
+                        "geometry": offset_geom,
+                        "lane_ty": lane_ty,
+                    }
+                )
+
+    if not all_features:
+        return []
+
+    final_features = gpd.GeoDataFrame(all_features, crs="EPSG:5179").to_crs("EPSG:4326")
+    return _convert_to_features(final_features, ["link_id", "lane_ty"])
+
+
+def get_roads_geometry(
+    lng: float, lat: float, disaster_type: str, analysis_distance: float
+) -> List[Dict]:
+    point = Point(lng, lat)
+    point_meters = transform(_TO_METERS, point)
+    analysis_buffer_meters = point_meters.buffer(analysis_distance * 1000)
+    analysis_buffer_wgs84 = transform(_TO_WGS84, analysis_buffer_meters)
+
+    roads_4326 = RoadGeometry.load_road_data()
+    roads_5179 = RoadGeometry._road_data_5179
+    spatial_index = RoadGeometry.get_spatial_index()
+    candidate_indices = spatial_index.query(analysis_buffer_wgs84)
+
+    if disaster_type == "nuclear":
+        return _extract_intersected_roads(
+            roads_4326, candidate_indices, analysis_buffer_wgs84
         )
-        return RoadGeometry._convert_to_features(final_features, ["link_id", "lane_ty"])
 
-    @staticmethod
-    def get_roads_geometry(
-        lng: float, lat: float, disaster_type: str, analysis_distance: float
-    ) -> List[Dict]:
-        point = Point(lng, lat)
-        point_meters = transform(_TO_METERS, point)
-        analysis_buffer_meters = point_meters.buffer(analysis_distance * 1000)
-        analysis_buffer_wgs84 = transform(_TO_WGS84, analysis_buffer_meters)
-
-        roads = RoadGeometry.load_road_data()
-        roads_5179 = RoadGeometry._road_data_5179
-        spatial_index = RoadGeometry.get_spatial_index()
-        candidate_indices = spatial_index.query(analysis_buffer_wgs84)
-
-        if disaster_type == "nuclear":
-            return RoadGeometry._extract_intersected_roads(
-                roads, candidate_indices, analysis_buffer_wgs84
+    elif disaster_type == "chemistry":
+        if analysis_distance > 5:
+            return _extract_intersected_roads(
+                roads_4326, candidate_indices, analysis_buffer_wgs84
             )
-
-        elif disaster_type == "chemistry":
-            if analysis_distance > 5:
-                return RoadGeometry._extract_intersected_roads(
-                    roads, candidate_indices, analysis_buffer_wgs84
-                )
-            else:
-                return RoadGeometry._create_micro_link(
-                    roads_5179, candidate_indices, analysis_buffer_wgs84
-                )
-
         else:
-            return RoadGeometry._create_walking_link(
-                roads_5179, candidate_indices, analysis_buffer_wgs84
+            return _create_micro_link(
+                roads_4326, roads_5179, candidate_indices, analysis_buffer_wgs84
             )
+
+    else:
+        return _create_walking_link(
+            roads_4326, roads_5179, candidate_indices, analysis_buffer_wgs84
+        )

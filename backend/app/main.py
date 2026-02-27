@@ -25,58 +25,36 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+def _error_response(status_code: int, message: str) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content={"success": False, "message": message, "data": None},
+    )
+
+
 @app.exception_handler(AppException)
 async def app_exception_handler(request: Request, exc: AppException):
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "success": False,
-            "message": exc.message,
-            "data": None,
-        },
-    )
+    return _error_response(exc.status_code, exc.message)
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    errors = exc.errors()
     messages = []
-    for error in errors:
+    for error in exc.errors():
         loc = " → ".join(str(l) for l in error["loc"] if l != "body")
         messages.append(f"{loc}: {error['msg']}")
 
-    return JSONResponse(
-        status_code=422,
-        content={
-            "success": False,
-            "message": "; ".join(messages),
-            "data": None,
-        },
-    )
+    return _error_response(422, "; ".join(messages))
 
 
 @app.exception_handler(ValueError)
 async def value_error_handler(request: Request, exc: ValueError):
-    return JSONResponse(
-        status_code=400,
-        content={
-            "success": False,
-            "message": str(exc),
-            "data": None,
-        },
-    )
+    return _error_response(400, str(exc))
 
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    return JSONResponse(
-        status_code=500,
-        content={
-            "success": False,
-            "message": f"서버 오류: {str(exc)}",
-            "data": None,
-        },
-    )
+    return _error_response(500, f"서버 오류: {str(exc)}")
 
 
 app.add_middleware(

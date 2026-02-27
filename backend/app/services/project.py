@@ -8,7 +8,7 @@ from .. import config
 from ..schemas.exceptions import AppException
 from ..services.chunk_upload import ChunkUploadService
 from ..services.zip_file import ZipFileService
-from ..validators.zip_file_validator import ZipFileValidator
+from ..validators import zip_file_validator
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,7 @@ class ProjectStorage:
         return project_id
 
     def save_project(self, project: dict) -> bool:
-        """프로젝트 저장"""
+        """프로젝트 저장 (ID는 create_project에서 미리 할당되어야 함)"""
         try:
             metadata = self._load_metadata()
             current_batch = metadata["current_batch"]
@@ -87,10 +87,6 @@ class ProjectStorage:
             if current_count >= self.max_per_batch:
                 current_batch += 1
                 current_count = 0
-
-            if "id" not in project:
-                project["id"] = metadata["last_id"] + 1
-                metadata["last_id"] = project["id"]
 
             project["created_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             project["is_deleted"] = False
@@ -195,8 +191,8 @@ class ProjectStorage:
         merged_file = None
         try:
             merged_file, session = chunk_service.merge_chunks(project_dict["upload_id"])
-            ZipFileValidator.validate_zip_integrity(str(merged_file))
-            ZipFileValidator.validate_required_files(
+            zip_file_validator.validate_zip_integrity(str(merged_file))
+            zip_file_validator.validate_required_files(
                 str(merged_file), project_dict["disaster_type"]
             )
 
@@ -208,13 +204,11 @@ class ProjectStorage:
 
             return self.create_project(project_dict)
 
-        except AppException:
-            if merged_file and merged_file.exists():
-                merged_file.unlink(missing_ok=True)
+        except Exception as e:
+            if not isinstance(e, AppException):
+                logger.error(f"프로젝트 생성 실패: {e}")
             raise
 
-        except Exception as e:
+        finally:
             if merged_file and merged_file.exists():
                 merged_file.unlink(missing_ok=True)
-            logger.error(f"프로젝트 생성 실패: {e}")
-            raise

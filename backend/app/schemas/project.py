@@ -1,8 +1,8 @@
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from ..validators.project_validator import ProjectValidators
+from ..schemas.exceptions import AppException
 from .common import ApiResponse
 
 
@@ -75,7 +75,7 @@ class ProjectsItemApiResponse(ApiResponse[List[ProjectItems]]):
         }
 
 
-class ProjectCreate(ProjectValidators, BaseModel):
+class ProjectCreate(BaseModel):
     """프로젝트 생성 요청"""
 
     upload_id: str = Field(..., description="청크 업로드 세션 ID")
@@ -98,6 +98,87 @@ class ProjectCreate(ProjectValidators, BaseModel):
         None, ge=1, le=16, description="바람 방향(원자력)"
     )
     wind_speed: Optional[float] = Field(None, gt=0, description="바람 속도(원자력)")
+
+    @model_validator(mode="after")
+    def validate_by_disaster_type(self):
+        """재난 유형별 파라미터 검증"""
+        if self.disaster_type == "nuclear":
+            self._validate_nuclear()
+        elif self.disaster_type == "chemistry":
+            self._validate_chemistry()
+        elif self.disaster_type in ["flood", "storm"]:
+            self._validate_flood_storm()
+        return self
+
+    def _validate_nuclear(self):
+        if self.radius1 > 5:
+            raise AppException(400, "Nuclear의 PAZ 반경은 5km 이하여야 합니다")
+
+        if self.radius2 <= self.radius1 or self.radius2 > 30:
+            raise AppException(
+                400, "Nuclear의 UPZ 반경은 PAZ보다 크고 30km 이하여야 합니다"
+            )
+
+        if self.radius3 is not None:
+            if self.radius3 <= self.radius2 or self.radius3 > 45:
+                raise AppException(
+                    400, "그림자 대피 권역은 UPZ보다 크고 45km 이하여야 합니다"
+                )
+
+        if self.radius4 is not None:
+            if self.radius3 is None:
+                raise AppException(
+                    400,
+                    "분석 권역을 설정하려면 그림자 대피 권역을 먼저 설정해야 합니다",
+                )
+            if self.radius4 <= self.radius3 or self.radius4 > 50:
+                raise AppException(
+                    400, "분석 권역은 그림자 대피 권역보다 크고 50km 이하여야 합니다"
+                )
+
+        if self.wind_direction is None:
+            raise AppException(400, "Nuclear의 경우 풍향은 필수입니다")
+
+        if self.wind_speed is None:
+            raise AppException(400, "Nuclear의 경우 풍속은 필수입니다")
+        if self.wind_speed > self.radius2:
+            raise AppException(
+                400, f"풍속은 UPZ 반경({self.radius2}km) 이하여야 합니다"
+            )
+
+    def _validate_chemistry(self):
+        if self.radius1 > 5:
+            raise AppException(400, "Chemistry의 대피 범위는 5km 이하여야 합니다")
+
+        if self.radius2 <= self.radius1 or self.radius2 > 15:
+            raise AppException(
+                400, "Chemistry의 분석 범위는 대피 범위보다 크고 15km 이하여야 합니다"
+            )
+
+        if self.radius3 is not None or self.radius4 is not None:
+            raise AppException(400, "Chemistry는 radius3, radius4를 사용하지 않습니다")
+
+        if self.wind_direction is not None or self.wind_speed is not None:
+            raise AppException(400, "Chemistry는 풍향/풍속을 사용하지 않습니다")
+
+    def _validate_flood_storm(self):
+        type_name = self.disaster_type.capitalize()
+
+        if self.radius1 > 2:
+            raise AppException(400, f"{type_name}의 대피 범위는 2km 이하여야 합니다")
+
+        if self.radius2 <= self.radius1 or self.radius2 > 3:
+            raise AppException(
+                400, f"{type_name}의 분석 범위는 대피 범위보다 크고 3km 이하여야 합니다"
+            )
+
+        if self.radius3 is not None or self.radius4 is not None:
+            raise AppException(
+                400, f"{type_name}는 radius3, radius4를 사용하지 않습니다"
+            )
+
+        if self.wind_direction is not None or self.wind_speed is not None:
+            raise AppException(400, f"{type_name}는 풍향/풍속을 사용하지 않습니다")
 
 
 class ProjectCreateResponse(BaseModel):
