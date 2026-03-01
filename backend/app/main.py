@@ -9,7 +9,6 @@ from fastapi.responses import JSONResponse
 from app.router import geometry, position, project, road
 
 from .schemas.exceptions import AppException
-from .services.redis_config import redis_config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -17,8 +16,6 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Redis 연결 확인"""
-    redis_config()
     yield
 
 

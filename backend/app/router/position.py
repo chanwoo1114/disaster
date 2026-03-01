@@ -25,7 +25,7 @@ RESPONSE_MODEL_MAP = {
 
 @router.post(
     "/upload/{disaster_type}/{directory}",
-    summary="Redis 프로젝트 업로드",
+    summary="프로젝트 업로드",
     response_model=PositionUploadApiResponse,
 )
 async def upload_position_data(
@@ -39,7 +39,7 @@ async def upload_position_data(
 
     return PositionUploadApiResponse(
         success=True,
-        message="Redis 업로드 성공",
+        message="업로드 성공",
         data=UploadPosition(first_time=first_time, last_time=last_time),
     )
 

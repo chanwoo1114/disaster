@@ -4,9 +4,9 @@ from collections import defaultdict
 
 import pandas as pd
 
-from ..config import PROJECTS_DIR, REDIS_TTL
+from ..config import PROJECTS_DIR
 from ..schemas.exceptions import AppException
-from .redis_config import get_redis_client
+from .cache import cache
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ def _seconds_to_hhmmss(seconds: int) -> str:
     return f"{h:02d}{m:02d}{s:02d}"
 
 
-def _build_redis_key(directory: str, time: int) -> str:
+def _build_cache_key(directory: str, time: int) -> str:
     return f"{directory}:{_seconds_to_hhmmss(time)}"
 
 
@@ -77,29 +77,24 @@ def preload_position(disaster_type: str, directory: str) -> tuple[int, dict]:
 
 
 def upload_data(directory: str, position_data: dict):
-    redis_client = get_redis_client()
-    pipe = redis_client.pipeline()
-
     for time, data in position_data.items():
-        key = _build_redis_key(directory, time)
-        pipe.set(key, json.dumps(data), ex=REDIS_TTL, nx=True)
-
-    pipe.execute()
+        key = _build_cache_key(directory, time)
+        if key not in cache:
+            cache[key] = data
 
 
 def get_position_data(disaster_type: str, directory: str, time: int):
-    redis_client = get_redis_client()
-    key = _build_redis_key(directory, time)
-    value = redis_client.get(key)
+    key = _build_cache_key(directory, time)
+    value = cache.get(key)
 
-    if value:
-        return json.loads(value)
+    if value is not None:
+        return value
 
     _, _, position_data = preload_position(disaster_type, directory)
     upload_data(directory, position_data)
 
-    value = redis_client.get(key)
-    if not value:
+    value = cache.get(key)
+    if value is None:
         raise AppException(404, f"해당 시간({time})의 데이터가 존재하지 않습니다")
 
-    return json.loads(value)
+    return value
