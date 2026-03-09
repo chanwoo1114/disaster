@@ -1,6 +1,7 @@
 import json
 import logging
 from collections import defaultdict
+from pathlib import Path
 
 import pandas as pd
 
@@ -52,7 +53,17 @@ def _build_cache_key(directory: str, time: int) -> str:
     return f"{directory}:{_seconds_to_hhmmss(time)}"
 
 
-def preload_position(disaster_type: str, directory: str) -> tuple[int, dict]:
+def _read_position_file(file: Path) -> pd.DataFrame | None:
+    if file.stat().st_size == 0:
+        return None
+    try:
+        df = pd.read_csv(file, encoding="CP949", sep=r"\s+", header=None, skiprows=1)
+        return df if not df.empty else None
+    except Exception:
+        return None
+
+
+def preload_position(disaster_type: str, directory: str) -> tuple[str, str, dict]:
     base_dir = PROJECTS_DIR / directory
 
     if not base_dir.exists():
@@ -64,11 +75,16 @@ def preload_position(disaster_type: str, directory: str) -> tuple[int, dict]:
 
     result = defaultdict(list)
     for file in txt_files:
-        df = pd.read_csv(file, encoding="CP949", sep=r"\s+", header=None, skiprows=1)
-        df.columns = _resolve_columns(disaster_type, len(df.columns))
+        df = _read_position_file(file)
+        if df is None:
+            continue
 
+        df.columns = _resolve_columns(disaster_type, len(df.columns))
         for time, group in df.groupby("time"):
             result[int(time)].extend(group.to_dict(orient="records"))
+
+    if not result:
+        raise AppException(404, f"유효한 위치 데이터가 없습니다: {directory}")
 
     first_time = _seconds_to_hhmmss(min(result.keys()) - 1)
     last_time = _seconds_to_hhmmss(max(result.keys()))

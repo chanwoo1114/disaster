@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends
 
 from ..schemas.road import RoadApiResponse, RoadQueryParams, RoadResponse
@@ -10,8 +12,13 @@ router = APIRouter(prefix="/road")
     "/geometry", response_model=RoadApiResponse, summary="재난 범위 도로 조회 API"
 )
 async def create_road_geometry(params: RoadQueryParams = Depends()):
-    features = road_geometry.get_roads_geometry(
-        params.lng, params.lat, params.disaster_type, params.analysis_distance
+    features = await asyncio.to_thread(
+        road_geometry.get_roads_geometry,
+        params.directory,
+        params.lng,
+        params.lat,
+        params.disaster_type,
+        params.analysis_distance,
     )
 
     return RoadApiResponse(

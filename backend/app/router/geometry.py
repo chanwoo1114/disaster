@@ -20,6 +20,7 @@ router = APIRouter(prefix="/geometry")
 )
 async def create_nuclear_buffer(params: NuclearQueryParams = Depends()):
     result = disaster_geometry.create_nuclear_buffer(
+        directory=params.directory,
         lng=params.lng,
         lat=params.lat,
         paz_distance=params.paz_distance,
@@ -44,6 +45,7 @@ async def create_nuclear_buffer(params: NuclearQueryParams = Depends()):
 )
 async def create_disaster_buffer(params: DisasterQueryParams = Depends()):
     result = disaster_geometry.create_disaster_buffer(
+        directory=params.directory,
         lng=params.lng,
         lat=params.lat,
         disaster_distance=params.disaster_distance,

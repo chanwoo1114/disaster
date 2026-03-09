@@ -8,6 +8,7 @@ from .common import ApiResponse
 class RoadQueryParams(BaseModel):
     """도로 조회 파라미터"""
 
+    directory: str = Field(..., description="프로젝트 디렉토리(upload_id)")
     lng: float = Field(..., ge=-180, le=180, description="X 좌표 (경도)")
     lat: float = Field(..., ge=-90, le=90, description="Y 좌표 (위도)")
     disaster_type: Literal["nuclear", "chemistry", "storm", "flood", "complex"] = Field(

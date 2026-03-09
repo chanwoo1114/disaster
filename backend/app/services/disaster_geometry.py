@@ -1,11 +1,15 @@
+import json
 import logging
 import math
-from typing import Dict, List
+from pathlib import Path
+from typing import Dict, List, Optional
 
 from pyproj import Transformer
 from shapely.geometry import Point, Polygon, mapping
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform
+
+from ..config import PROJECTS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +34,11 @@ def _create_wedge(
     center_point: Point, radius_meters: float, start_angle: float, end_angle: float
 ) -> Polygon:
     cx, cy = center_point.x, center_point.y
+    num_points = max(int(abs(end_angle - start_angle)), 1)
 
     coords = [(cx, cy)]
-    for angle in range(int(start_angle), int(end_angle) + 1):
+    for i in range(num_points + 1):
+        angle = start_angle + (end_angle - start_angle) * i / num_points
         rad = math.radians(angle)
         x = cx + radius_meters * math.sin(rad)
         y = cy + radius_meters * math.cos(rad)
@@ -40,26 +46,6 @@ def _create_wedge(
     coords.append((cx, cy))
 
     return Polygon(coords)
-
-
-def _create_specific_wedges_with_same_width(
-    center_point: Point,
-    base_radius_meters: float,
-    new_radius_meters: float,
-    sector_indices: List[int],
-) -> List[Polygon]:
-    wedges = []
-    adjusted_angle_per_wedge = (base_radius_meters / new_radius_meters) * SECTOR_ANGLE
-
-    for i in sector_indices:
-        center_angle = i * SECTOR_ANGLE
-        start_angle = center_angle - (adjusted_angle_per_wedge / 2)
-        end_angle = center_angle + (adjusted_angle_per_wedge / 2)
-
-        wedge = _create_wedge(center_point, new_radius_meters, start_angle, end_angle)
-        wedges.append(wedge)
-
-    return wedges
 
 
 def _create_16_wedges(center_point: Point, radius_meters: float) -> List[Polygon]:
@@ -72,25 +58,39 @@ def _create_16_wedges(center_point: Point, radius_meters: float) -> List[Polygon
     return wedges
 
 
-def _get_opposite_sectors(wind_direction: int) -> List[int]:
-    opposite_center = ((wind_direction - 1) + 8) % NUM_SECTORS
-    return [
-        (opposite_center - 1) % NUM_SECTORS,
-        opposite_center,
-        (opposite_center + 1) % NUM_SECTORS,
-    ]
-
-
 def _geometries_to_dict_list(geometries: List[BaseGeometry]) -> List[Dict]:
     return [mapping(_transform_from_meters(geom)) for geom in geometries]
 
 
+def _load_cached_geometry(directory: str, filename: str) -> Optional[dict]:
+    """캐시된 geometry JSON 파일 로드"""
+    cache_path = PROJECTS_DIR / directory / filename
+    if cache_path.exists():
+        with open(cache_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return None
+
+
+def _save_geometry_cache(directory: str, filename: str, data: dict) -> None:
+    """geometry 결과를 JSON 파일로 저장"""
+    cache_dir = PROJECTS_DIR / directory
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_path = cache_dir / filename
+    with open(cache_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+
+
 def create_disaster_buffer(
+    directory: str,
     lng: float,
     lat: float,
     disaster_distance: float,
     analysis_distance: float,
 ) -> Dict[str, str]:
+    cached = _load_cached_geometry(directory, "disaster_geometry.json")
+    if cached is not None:
+        return cached
+
     point = Point(lng, lat)
     point_meters = _transform_to_meters(point)
 
@@ -100,13 +100,17 @@ def create_disaster_buffer(
     disaster_geometry = _transform_from_meters(disaster_buffer)
     analysis_geometry = _transform_from_meters(analysis_buffer)
 
-    return {
+    result = {
         "disaster_geometry": mapping(disaster_geometry),
         "analysis_geometry": mapping(analysis_geometry),
     }
 
+    _save_geometry_cache(directory, "disaster_geometry.json", result)
+    return result
+
 
 def create_nuclear_buffer(
+    directory: str,
     lng: float,
     lat: float,
     paz_distance: float,
@@ -116,14 +120,16 @@ def create_nuclear_buffer(
     shadow_distance: float,
     analysis_distance: float,
 ) -> Dict[str, str | List[str] | None]:
+    cached = _load_cached_geometry(directory, "nuclear_geometry.json")
+    if cached is not None:
+        return cached
+
     point = Point(lng, lat)
     point_meters = _transform_to_meters(point)
 
     result = {
-        "centroid": mapping(point),
         "paz_geometry": None,
         "upz_geometry": None,
-        "upz_wind_geometry": None,
         "shadow_geometry": None,
         "analysis_geometry": None,
     }
@@ -137,22 +143,6 @@ def create_nuclear_buffer(
         upz_wedges_meters = _create_16_wedges(point_meters, upz_distance * 1000)
         result["upz_geometry"] = _geometries_to_dict_list(upz_wedges_meters)
 
-        if (
-            upz_wind_distance is not None
-            and wind_direction is not None
-            and upz_distance != upz_wind_distance
-        ):
-            opposite_sectors = _get_opposite_sectors(wind_direction)
-            upz_wind_wedges_meters = _create_specific_wedges_with_same_width(
-                point_meters,
-                upz_distance * 1000,
-                upz_wind_distance * 1000,
-                opposite_sectors,
-            )
-            result["upz_wind_geometry"] = _geometries_to_dict_list(
-                upz_wind_wedges_meters
-            )
-
     if shadow_distance is not None:
         shadow_buffer = point_meters.buffer(shadow_distance * 1000)
         shadow_geometry = _transform_from_meters(shadow_buffer)
@@ -163,4 +153,5 @@ def create_nuclear_buffer(
         analysis_geometry = _transform_from_meters(analysis_buffer)
         result["analysis_geometry"] = mapping(analysis_geometry)
 
+    _save_geometry_cache(directory, "nuclear_geometry.json", result)
     return result
