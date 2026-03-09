@@ -1,8 +1,9 @@
 import EmptyProject from "../../features/Project/pages/EmptyProject.jsx";
-import Project from "../../features/Project/pages/Project.jsx";
+import ProjectView from "../../features/Project/pages/ProjectView.jsx";
+import ProjectCreate from "../../features/Project/pages/ProjectCreate.jsx";
 
 export default function MainContent({
-  viewMode,
+  mode,
   selectedProjectData,
   onCreateProject,
   onCancelCreate,
@@ -11,10 +12,14 @@ export default function MainContent({
   return (
     <div className="flex-1 flex flex-col bg-gray-50">
       <div className="flex-1 flex flex-col overflow-y-auto">
-        {viewMode ? (
-          <Project
-            onCancel={onCancelCreate}
+        {mode === 'view' && selectedProjectData ? (
+          <ProjectView
             selectedProject={selectedProjectData}
+            onSuccess={onSuccess}
+          />
+        ) : mode === 'create' ? (
+          <ProjectCreate
+            onCancel={onCancelCreate}
             onSuccess={onSuccess}
           />
         ) : (

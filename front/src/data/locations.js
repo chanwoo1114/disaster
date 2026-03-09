@@ -1,4 +1,4 @@
-export const nuclearLocations = [
+const nuclearLocations = [
   {
     name: "고리원전",
     x: 129.28595,
@@ -31,7 +31,7 @@ export const nuclearLocations = [
   }
 ]
 
-export const chemistryLocations = [
+const chemistryLocations = [
   {
     name: "태광산업(주) 석유화학3공장",
     x: 129.33775,
@@ -79,7 +79,7 @@ export const chemistryLocations = [
   }
 ]
 
-export const stormLocations = [
+const stormLocations = [
   {
     name: "양양 기사운리 마을회관",
     x: 128.73108,
@@ -102,7 +102,7 @@ export const stormLocations = [
   }
 ]
 
-export const floodLocations = [
+const floodLocations = [
   {
     name: "울진군",
     x: 129.44225,

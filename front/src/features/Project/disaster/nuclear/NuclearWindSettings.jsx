@@ -15,14 +15,13 @@ export default function NuclearWindSettings({
       <SectionTitle>
         풍향/풍속 설정
       </SectionTitle>
-      {/* 풍속 입력 */}
+
       <WindSpeedInput
         value={windSpeed}
         onChange={onWindSpeedChange}
         maxLimit={upzRadius}
       />
 
-      {/* 풍향 선택 */}
       <WindDirectionSelector
         value={windDirection}
         onChange={onWindDirectionChange}

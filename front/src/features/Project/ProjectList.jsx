@@ -18,7 +18,7 @@ function formatDate(dateStr) {
 export default function ProjectList({
   projectData,
   selectedProject,
-  setSelectedProject,
+  onSelectProject,
   loading,
   hasMore,
   scrollRef,
@@ -31,25 +31,25 @@ export default function ProjectList({
       onScroll={handleScroll}
     >
       {projectData.length > 0 &&
-        projectData.map((project) => {
+        projectData.map((project, index) => {
           const isSelected = selectedProject === project.id;
           const disaster = DISASTER_LABELS[project.disasterType] || { label: project.disasterType, color: 'bg-gray-100 text-gray-600' };
 
           return (
             <div
               key={project.id}
-              onClick={() => setSelectedProject(project.id)}
-              className={`group relative px-4 py-3 cursor-pointer transition-colors ${
+              onClick={() => onSelectProject(project.id)}
+              className={`group relative px-4 py-3 cursor-pointer transition-all duration-150 ${
                 isSelected
                   ? 'bg-blue-50 border-l-[3px] border-l-blue-500'
                   : 'border-l-[3px] border-l-transparent hover:bg-gray-50'
-              }`}
+              } ${index > 0 ? 'border-t border-t-gray-100' : ''}`}
             >
               <div className="flex items-start justify-between gap-2">
                 <h3 className={`text-sm font-medium truncate ${isSelected ? 'text-blue-700' : 'text-gray-800'}`}>
                   {project.projectName}
                 </h3>
-                <span className={`shrink-0 text-[11px] font-medium px-1.5 py-0.5 rounded ${disaster.color}`}>
+                <span className={`shrink-0 text-[11px] font-medium px-1.5 py-0.5 rounded-md ${disaster.color}`}>
                   {disaster.label}
                 </span>
               </div>

@@ -1,6 +1,5 @@
 import {transformCoordinates} from './mapNavigation.js';
 
-// 마커 생성
 export const addMarker = (mapInstance, x, y, options = {}) => {
   if (!mapInstance || !window.ol) return null;
 
@@ -39,7 +38,6 @@ export const addMarker = (mapInstance, x, y, options = {}) => {
   return vectorLayer;
 };
 
-// 마커 제거
 export const removeMarker = (mapInstance, markerLayer) => {
   if (mapInstance && markerLayer) {
     mapInstance.removeLayer(markerLayer);

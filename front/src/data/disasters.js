@@ -7,31 +7,27 @@ import ComplexImage from "../assets/images/typ_complex2.png";
 export const disasterTypes = [
   {
     key: "nuclear",
-    label: "Nuclear",
+    label: "원자력",
     img: NuclearImage,
   },
   {
     key: "chemistry",
-    label: "Chemistry",
+    label: "화학",
     img: ChemistryImage,
   },
   {
     key: "storm",
-    label: "Storm",
+    label: "태풍",
     img: StormImage,
   },
   {
     key: "flood",
-    label: "Flood",
+    label: "홍수",
     img: FloodImage,
   },
   {
     key: "complex",
-    label: "Complex",
+    label: "복합",
     img: ComplexImage,
   }
 ];
-
-export const getDisasterByKey = (key) => {
-  return disasterTypes.find(disaster => disaster.key === key);
-};

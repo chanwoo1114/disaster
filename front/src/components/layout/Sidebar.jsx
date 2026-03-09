@@ -5,7 +5,7 @@ import { Plus } from 'lucide-react';
 export default function Sidebar({
   projectData,
   selectedProject,
-  setSelectedProject,
+  onSelectProject,
   loading,
   hasMore,
   scrollRef,
@@ -29,7 +29,7 @@ export default function Sidebar({
       <ProjectList
         projectData={projectData}
         selectedProject={selectedProject}
-        setSelectedProject={setSelectedProject}
+        onSelectProject={onSelectProject}
         loading={loading}
         hasMore={hasMore}
         scrollRef={scrollRef}

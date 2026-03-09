@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { initializeMap } from "../utils/mapInit.js";
 import { moveMap } from "../utils/mapNavigation.js";
 import { addMarker } from "../utils/mapMarkers.js";
 import {
   getDisasterGeometry,
+  getNuclearGeometry,
   getDisasterLinkGeometry,
   postUploadLocation,
   getPositionData,
@@ -14,10 +15,9 @@ import {
   buildRoadParams,
   positionUploadParams,
 } from "../utils/apiParams.js";
-import { addRoadGeometry, addDisasterGeometry } from "../utils/mapGeometry.js";
-import { timeToSeconds, secondsToHHMMSS, formatSeconds } from "../utils/timeUtils.js";
+import { addRoadGeometry, addDisasterGeometry, addNuclearGeometry } from "../utils/mapGeometry.js";
+import { timeToSeconds, formatSeconds } from "../utils/timeUtils.js";
 import { initPositionLayer, updatePositions } from "../utils/mapPosition.js";
-
 
 const DISASTER_LABEL = {
   nuclear: "방사능",
@@ -26,8 +26,14 @@ const DISASTER_LABEL = {
   flood: "홍수",
 };
 
+const SPEEDS = [1, 2, 4, 8];
+const NUCLEAR_INTERVAL = 300;
+
 export default function Result() {
-  const location = useLocation();
+  const { project } = useLocation().state;
+  const isNuclear = project.disasterType === "nuclear";
+  const isVehicle = project.disasterType === "nuclear" || project.disasterType === "chemistry";
+
   const mapInstance = useRef(null);
   const intervalRef = useRef(null);
   const progressRef = useRef(null);
@@ -44,58 +50,54 @@ export default function Result() {
   const [firstTime, setFirstTime] = useState(null);
   const [currentTime, setCurrentTime] = useState(null);
   const [lastTime, setLastTime] = useState(null);
+  const [vehicleCount, setVehicleCount] = useState(0);
 
-  const speeds = [1, 2, 4, 8];
+  const progress = useMemo(() => {
+    if (currentTime === null || firstTime === null || lastTime === null || lastTime === firstTime) {
+      return 0;
+    }
+    return ((currentTime - firstTime) / (lastTime - firstTime)) * 100;
+  }, [currentTime, firstTime, lastTime]);
 
-  // 프로그레스 비율
-  const progress =
-    currentTime !== null &&
-    firstTime !== null &&
-    lastTime !== null &&
-    lastTime !== firstTime
-      ? ((currentTime - firstTime) / (lastTime - firstTime)) * 100
-      : 0;
+  const positionTimeKey = useMemo(() => {
+    if (currentTime === null) return null;
+    return isNuclear ? Math.floor(currentTime / NUCLEAR_INTERVAL) : currentTime;
+  }, [currentTime, isNuclear]);
 
-  // 프로그레스바 클릭
+  const positionQueryTime = useMemo(() => {
+    if (currentTime === null) return null;
+    return isNuclear ? Math.floor(currentTime / NUCLEAR_INTERVAL) * NUCLEAR_INTERVAL : currentTime;
+  }, [currentTime, isNuclear]);
+
   const handleProgressClick = (e) => {
     if (!isLoaded || firstTime === null || lastTime === null) return;
     const rect = progressRef.current.getBoundingClientRect();
-    const ratio = Math.max(
-      0,
-      Math.min(1, (e.clientX - rect.left) / rect.width)
-    );
-    setCurrentTime(Math.round(firstTime + ratio * (lastTime - firstTime)));
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const newTime = Math.round(firstTime + ratio * (lastTime - firstTime));
+
+    if (isNuclear) {
+      setCurrentTime(Math.floor(newTime / NUCLEAR_INTERVAL) * NUCLEAR_INTERVAL);
+    } else {
+      setCurrentTime(newTime);
+    }
   };
 
-  // 맵 초기화
   useEffect(() => {
     mapInstance.current = initializeMap("result-map", "GRAPHIC_WHITE");
-    moveMap(
-      mapInstance.current,
-      location.state.project.lng,
-      location.state.project.lat
-    );
-    addMarker(
-      mapInstance.current,
-      location.state.project.lng,
-      location.state.project.lat
-    );
+    moveMap(mapInstance.current, project.lng, project.lat);
+    addMarker(mapInstance.current, project.lng, project.lat);
     initPositionLayer(mapInstance.current);
   }, []);
 
-  // 데이터 로드
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const bufferParams = buildBufferParams(location.state.project);
-        const roadParams = buildRoadParams(location.state.project);
-        const uploadParams = positionUploadParams(location.state.project);
-
+        const bufferFn = isNuclear ? getNuclearGeometry : getDisasterGeometry;
         const [bufferResponse, roadResponse, uploadResponse] =
           await Promise.all([
-            getDisasterGeometry(bufferParams),
-            getDisasterLinkGeometry(roadParams),
-            postUploadLocation(uploadParams),
+            bufferFn(buildBufferParams(project)),
+            getDisasterLinkGeometry(buildRoadParams(project)),
+            postUploadLocation(positionUploadParams(project)),
           ]);
 
         setApiData({
@@ -103,80 +105,75 @@ export default function Result() {
           roadGeometry: roadResponse.data,
           selectedTime: uploadResponse.data,
         });
-
         setIsLoaded(true);
       } catch (error) {
-        console.error(error);
       }
     };
     fetchData();
   }, []);
 
-  // 시간 초기값 세팅 (초 단위로 변환)
   useEffect(() => {
-    if (apiData.selectedTime) {
-      const first = timeToSeconds(apiData.selectedTime.firstTime);
-      const last = timeToSeconds(apiData.selectedTime.lastTime);
-      setFirstTime(first);
-      setCurrentTime(first);
-      setLastTime(last);
-    }
+    if (!apiData.selectedTime) return;
+    const first = timeToSeconds(apiData.selectedTime.firstTime);
+    const last = timeToSeconds(apiData.selectedTime.lastTime);
+    setFirstTime(first);
+    setCurrentTime(first);
+    setLastTime(last);
   }, [apiData.selectedTime]);
 
-  // 지오메트리 렌더
   useEffect(() => {
-    if (
-      !mapInstance.current ||
-      !apiData.bufferGeometry ||
-      !apiData.roadGeometry
-    )
-      return;
-    addDisasterGeometry(mapInstance.current, apiData.bufferGeometry);
-    addRoadGeometry(mapInstance.current, apiData.roadGeometry);
-  }, [apiData]);
-
-  // 재생 타이머
-  useEffect(() => {
-    if (isPlaying && currentTime !== null) {
-      intervalRef.current = setInterval(() => {
-        setCurrentTime((prev) => {
-          const next = prev + speed;
-          if (lastTime && next >= lastTime) {
-            setIsPlaying(false);
-            return lastTime;
-          }
-          return next;
-        });
-      }, 1000);
+    if (!mapInstance.current || !apiData.bufferGeometry || !apiData.roadGeometry) return;
+    if (isNuclear) {
+      addNuclearGeometry(mapInstance.current, apiData.bufferGeometry, project.windDirection);
+    } else {
+      addDisasterGeometry(mapInstance.current, apiData.bufferGeometry);
     }
-    return () => clearInterval(intervalRef.current);
-  }, [isPlaying, speed, lastTime]);
+    addRoadGeometry(mapInstance.current, apiData.roadGeometry);
+  }, [apiData.bufferGeometry, apiData.roadGeometry]);
 
-  // 위치 데이터 조회
   useEffect(() => {
-    if (currentTime === firstTime || !isLoaded) return;
+    if (!isPlaying || currentTime === null) return;
+
+    const tick = isNuclear ? NUCLEAR_INTERVAL : 1;
+
+    intervalRef.current = setInterval(() => {
+      setCurrentTime((prev) => {
+        const next = prev + tick * speed;
+        if (lastTime && next >= lastTime) {
+          setIsPlaying(false);
+          return lastTime;
+        }
+        return next;
+      });
+    }, 1000);
+
+    return () => clearInterval(intervalRef.current);
+  }, [isPlaying, speed, lastTime, isNuclear]);
+
+  useEffect(() => {
+    if (positionTimeKey === null || !isLoaded) return;
+    if (positionQueryTime === firstTime) return;
 
     const fetchPosition = async () => {
       try {
         const response = await getPositionData(
-          location.state.project.disasterType,
-          location.state.project.uploadId,
-          currentTime
+          project.disasterType,
+          project.uploadId,
+          positionQueryTime
         );
-        updatePositions(response.data);
+        updatePositions(response.data, isVehicle);
+        setVehicleCount(response.data.length);
       } catch (error) {
-        console.log(error)
       }
-    }
+    };
 
     fetchPosition();
-  }, [currentTime]);
+  }, [positionTimeKey]);
 
   return (
     <div className="relative h-screen">
       <div id="result-map" className="w-full h-full" />
 
-      {/* 우측 상단 파란 시간 뱃지 */}
       <div className="absolute top-3 right-3 bg-blue-600/90 rounded-lg px-3.5 py-2 flex items-center gap-1.5 shadow-[0_4px_12px_rgba(37,99,235,0.3)]">
         <span
           className={`w-1.5 h-1.5 rounded-full ${isPlaying ? "bg-white animate-pulse" : "bg-blue-300"}`}
@@ -186,11 +183,9 @@ export default function Result() {
         </span>
       </div>
 
-      {/* 하단 바 */}
       <div
         className={`absolute bottom-3 left-3 right-3 bg-white rounded-xl px-4 py-2.5 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.06),0_8px_32px_rgba(0,0,0,0.1)] border border-gray-200 transition-opacity ${isLoaded ? "opacity-100" : "opacity-50 pointer-events-none"}`}
       >
-        {/* 재생/일시정지 */}
         <button
           onClick={() => setIsPlaying(!isPlaying)}
           className="w-9 h-9 rounded-full bg-blue-500 hover:bg-blue-600 flex items-center justify-center transition shrink-0 shadow-[0_2px_8px_rgba(59,130,246,0.35)]"
@@ -206,7 +201,6 @@ export default function Result() {
           )}
         </button>
 
-        {/* 프로그레스바 */}
         <div
           ref={progressRef}
           onClick={handleProgressClick}
@@ -222,16 +216,14 @@ export default function Result() {
           </div>
         </div>
 
-        {/* 시간 */}
         <span className="font-mono text-[11px] text-slate-500 shrink-0">
           {formatSeconds(currentTime)} / {formatSeconds(lastTime)}
         </span>
 
         <div className="w-px h-5 bg-gray-200 shrink-0" />
 
-        {/* 배속 */}
         <div className="flex gap-1 shrink-0">
-          {speeds.map((s) => (
+          {SPEEDS.map((s) => (
             <button
               key={s}
               onClick={() => setSpeed(s)}
@@ -248,13 +240,12 @@ export default function Result() {
 
         <div className="w-px h-5 bg-gray-200 shrink-0" />
 
-        {/* 정보 */}
         <div className="flex items-center gap-2.5 shrink-0">
           <span className="text-[12px] text-slate-400">
-            재난 <span className="text-slate-700 font-semibold">{DISASTER_LABEL[location.state.project.disasterType]}</span>
+            재난 <span className="text-slate-700 font-semibold">{DISASTER_LABEL[project.disasterType]}</span>
           </span>
           <span className="text-[12px] text-slate-400">
-            차량 <span className="text-slate-700 font-semibold">1,024</span>
+            {project.disasterType === "nuclear" || project.disasterType === "chemistry" ? "차량" : "보행자"} <span className="text-slate-700 font-semibold">{vehicleCount.toLocaleString()}</span>
           </span>
         </div>
       </div>

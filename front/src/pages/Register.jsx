@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { getProjectData } from "../services/api.js";
 import { PROJECT_LIST_ITEM_HEIGHT } from "../constants/index.js";
 
@@ -12,49 +12,50 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const scrollRef = useRef(null);
-  const [selectedProject, setSelectedProject] = useState(null);
-  const [viewMode, setViewMode] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState(null);
+  const [mode, setMode] = useState('list');
 
-  const calculateLimit = () => {
+  const limitRef = useRef(limit);
+  limitRef.current = limit;
+
+  const selectedProjectData = useMemo(
+    () => projectData.find(p => p.id === selectedProjectId) || null,
+    [projectData, selectedProjectId]
+  );
+
+  const calculateLimit = useCallback(() => {
     if (scrollRef.current) {
       const containerHeight = scrollRef.current.clientHeight;
-      const itemHeight = PROJECT_LIST_ITEM_HEIGHT;
-      const visibleItems = Math.ceil(containerHeight / itemHeight);
+      const visibleItems = Math.ceil(containerHeight / PROJECT_LIST_ITEM_HEIGHT);
       return visibleItems + 5;
     }
     return 12;
-  };
-
-  useEffect(() => {
-    if (selectedProject) {
-      const project = projectData.find(p => p.id === selectedProject);
-      if (project) {
-        setViewMode(true)
-      }
-    } else {
-      setViewMode(false)
-    }
-  }, [selectedProject, projectData]);
+  }, []);
 
   useEffect(() => {
     const initialLimit = calculateLimit();
     setLimit(initialLimit);
 
+    let timerId;
     const handleResize = () => {
-      const newLimit = calculateLimit();
-      if (newLimit !== limit) {
-        setLimit(newLimit);
-        if (newLimit > limit && projectData.length < newLimit && hasMore) {
-          setPage(prev => prev + 1);
-        }
-      }
+      clearTimeout(timerId);
+      timerId = setTimeout(() => {
+        const newLimit = calculateLimit();
+        setLimit(prev => {
+          if (newLimit !== prev) {
+            return newLimit;
+          }
+          return prev;
+        });
+      }, 200);
     };
 
     window.addEventListener('resize', handleResize);
     return () => {
+      clearTimeout(timerId);
       window.removeEventListener('resize', handleResize);
     };
-  }, [limit, projectData.length, hasMore]);
+  }, [calculateLimit]);
 
   useEffect(() => {
     if (limit > 0) {
@@ -76,7 +77,25 @@ export default function Register() {
         setHasMore(false);
       }
     } catch (error) {
-      console.error('데이터 로딩 실패', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetAndFetch = async () => {
+    setLoading(true);
+    setHasMore(true);
+    try {
+      const response = await getProjectData(1, limitRef.current);
+      if (response?.success && response?.data?.length > 0) {
+        setProjectData(response.data);
+        setPage(1);
+        setHasMore(response.data.length >= limitRef.current);
+      } else {
+        setProjectData([]);
+        setHasMore(false);
+      }
+    } catch (error) {
     } finally {
       setLoading(false);
     }
@@ -90,46 +109,33 @@ export default function Register() {
     }
   };
 
-  // 새 프로젝트 생성
-  const handleCreateProject = () => {
-    setSelectedProject(null);
-    setViewMode(true)
-  }
+  const handleSelectProject = useCallback((projectId) => {
+    setSelectedProjectId(projectId);
+    setMode(projectId ? 'view' : 'list');
+  }, []);
 
-  // 프로젝트 생성 취소
-  const handleCancelCreate = () => {
-    setSelectedProject(null);
-    setViewMode(false);
-  }
+  const handleCreateProject = useCallback(() => {
+    setSelectedProjectId(null);
+    setMode('create');
+  }, []);
 
-  // 프로젝트 생성/삭제 성공 시 목록 갱신
-  const handleSuccess = () => {
-    setSelectedProject(null);
-    setViewMode(false);
-    setLoading(true);
-    setHasMore(true);
-    getProjectData(1, limit)
-      .then((response) => {
-        if (response?.success && response?.data?.length > 0) {
-          setProjectData(response.data);
-          setPage(1);
-          setHasMore(response.data.length >= limit);
-        } else {
-          setProjectData([]);
-          setHasMore(false);
-        }
-      })
-      .catch((error) => console.error('데이터 로딩 실패', error))
-      .finally(() => setLoading(false));
-  }
+  const handleCancelCreate = useCallback(() => {
+    setSelectedProjectId(null);
+    setMode('list');
+  }, []);
+
+  const handleSuccess = useCallback(() => {
+    setSelectedProjectId(null);
+    setMode('list');
+    resetAndFetch();
+  }, []);
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
-      {/* 왼쪽 사이드바 영역 */}
       <Sidebar
         projectData={projectData}
-        selectedProject={selectedProject}
-        setSelectedProject={setSelectedProject}
+        selectedProject={selectedProjectId}
+        onSelectProject={handleSelectProject}
         loading={loading}
         hasMore={hasMore}
         scrollRef={scrollRef}
@@ -137,10 +143,9 @@ export default function Register() {
         onCreateProject={handleCreateProject}
       />
 
-      {/* 오른쪽 메인 영역 */}
       <MainContent
-        viewMode={viewMode}
-        selectedProjectData={projectData.find(p => p.id === selectedProject) || null}
+        mode={mode}
+        selectedProjectData={mode === 'view' ? selectedProjectData : null}
         onCreateProject={handleCreateProject}
         onCancelCreate={handleCancelCreate}
         onSuccess={handleSuccess}

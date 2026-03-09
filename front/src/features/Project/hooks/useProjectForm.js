@@ -24,7 +24,6 @@ export function useProjectForm({ onSuccess } = {}) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // react-hook-form의 register와 호환되는 인터페이스
   const register = (name) => {
     const values = { projectName, projectDescription };
     return {
@@ -56,7 +55,6 @@ export function useProjectForm({ onSuccess } = {}) {
     return Object.keys(newErrors).length === 0;
   };
 
-  // react-hook-form의 handleSubmit과 호환되는 인터페이스
   const handleSubmit = (onSubmitFn) => (e) => {
     e.preventDefault();
     if (validate()) onSubmitFn();
@@ -125,7 +123,6 @@ export function useProjectForm({ onSuccess } = {}) {
       resetForm();
       if (onSuccess) onSuccess();
     } catch (error) {
-      console.error("프로젝트 생성 실패", error);
     } finally {
       setIsSubmitting(false);
     }

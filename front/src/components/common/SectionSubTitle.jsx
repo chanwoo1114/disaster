@@ -1,6 +1,6 @@
 export default function SectionSubTitle({ children, className = ''}) {
   return (
-    <p className={`text-base font-bold text-gray-750 mb-2 ${className}`}>
+    <p className={`text-sm font-semibold text-gray-700 mb-1.5 ${className}`}>
       {children}
     </p>
   )

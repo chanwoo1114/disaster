@@ -1,10 +1,10 @@
-// 재난 범위 파라미터 생성
 export function buildBufferParams(project) {
   const { lng, lat, disasterType } = project;
 
   if ( disasterType === 'nuclear') {
     return (
       {
+        directory: project.uploadId,
         lng,
         lat,
         pazDistance: project.radius1,
@@ -19,6 +19,7 @@ export function buildBufferParams(project) {
 
   return (
     {
+      directory: project.uploadId,
       lng,
       lat,
       disasterType,
@@ -28,11 +29,11 @@ export function buildBufferParams(project) {
   )
 }
 
-// 도로 파라미터 생성
 export function buildRoadParams(project) {
   const { lng, lat, disasterType } = project;
 
   return {
+    directory: project.uploadId,
     lng,
     lat,
     disasterType,
@@ -40,7 +41,6 @@ export function buildRoadParams(project) {
   };
 }
 
-// 위치 파라미터 생성
 export function positionUploadParams(project) {
   return {
     disasterType: project.disasterType,

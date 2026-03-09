@@ -48,7 +48,6 @@ export default function MiniMap({location, center, onMapClick}) {
         markerLayer.current = null;
       }
 
-      // 클릭 이벤트 리스너 등록
       if (!clickListenerRemover.current) {
         clickListenerRemover.current = addMapClickListener(
           mapInstance.current,
@@ -113,7 +112,6 @@ export default function MiniMap({location, center, onMapClick}) {
         className={`w-full h-full ${location === "map-select" ? 'cursor-pointer' : ''}`}
       />
 
-      {/* 줌 컨트롤 버튼 */}
       <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
         <button
           onClick={handleZoomIn}

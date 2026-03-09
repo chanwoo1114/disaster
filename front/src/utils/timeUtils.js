@@ -5,13 +5,6 @@ export const timeToSeconds = (time) => {
     parseInt(str.slice(4, 6));
 };
 
-export const secondsToHHMMSS = (sec) => {
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  return `${String(h).padStart(2, "0")}${String(m).padStart(2, "0")}${String(s).padStart(2, "0")}`;
-};
-
 export const formatSeconds = (sec) => {
   if (sec === null || sec === undefined) return "00:00:00";
   const h = Math.floor(sec / 3600);

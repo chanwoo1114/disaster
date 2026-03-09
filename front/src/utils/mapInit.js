@@ -1,4 +1,3 @@
-// 기본 맵 세팅
 export const initializeMap = (containerId, mapType = 'GRAPHIC_WHITE') => {
   const vw = window.vw;
   if (!vw || !vw.ol3) return null;

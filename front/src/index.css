@@ -26,8 +26,8 @@
     }
 }
 
-.ol-scale-line,
-.ol-attribution,
-.ol-zoom {
+.vw-logo,
+.vw-notice,
+.vw-scale-line {
     display: none !important;
 }

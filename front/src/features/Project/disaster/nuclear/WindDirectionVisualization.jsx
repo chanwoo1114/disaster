@@ -5,11 +5,9 @@ export default function WindDirectionVisualization({ directions, value, windSpee
 
   const limitedSpeed = Math.min(rawSpeed, inputUpz);
 
-  // SVG 픽셀 상수
   const SVG_PAZ_RADIUS = 15;
   const SVG_UPZ_RADIUS = 60;
 
-  // 조건: "제한된 풍속"이 PAZ보다 커야 확산 범위 표시
   const shouldShowWind = value && limitedSpeed >= inputPaz;
 
   const getOppositeWindSectors = (selectedValue) => {
@@ -37,7 +35,7 @@ export default function WindDirectionVisualization({ directions, value, windSpee
   return (
     <div className="relative w-48 h-48 bg-white rounded-lg border border-gray-300 p-1 flex items-center justify-center shadow-sm">
       <svg width="180" height="180" viewBox="0 0 200 200">
-        {/* 배경 원들 */}
+
         <circle cx="100" cy="100" r="90" fill="none" stroke="#f3f4f6" strokeWidth="1" />
         <circle cx="100" cy="100" r={SVG_UPZ_RADIUS} fill="none" stroke="#9ca3af" strokeWidth="1" strokeDasharray="4 2" />
         <circle cx="100" cy="100" r={SVG_PAZ_RADIUS} fill="#bfdbfe" stroke="#3b82f6" strokeWidth="1.5" />
