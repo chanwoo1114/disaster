@@ -1,0 +1,26 @@
+version: "2.2"
+
+services:
+  backend:
+    build: ./backend
+    container_name: disaster-backend
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./backend/app/data:/app/app/data
+    environment:
+      - PYTHONPATH=/app
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./front
+      args:
+        VITE_VWORLD_API_KEY: ${VITE_VWORLD_API_KEY}
+        VITE_BACKEND_URL: /api
+    container_name: disaster-frontend
+    ports:
+      - "5001:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
