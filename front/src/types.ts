@@ -1,4 +1,4 @@
-import type { FeatureCollection, LineString, MultiLineString } from 'geojson';
+import type { FeatureCollection, LineString, MultiLineString, Point } from 'geojson';
 
 export type DisasterType = 'nuclear' | 'chemistry' | 'storm' | 'flood' | 'complex';
 
@@ -30,6 +30,47 @@ export interface VehiclePositionsSummary {
   maxVehicles: number;
   firstTime: number;
   lastTime: number;
+}
+
+export interface ShelterSummary {
+  count: number;
+}
+
+/** 대피소 포인트 속성 */
+export interface ShelterProps {
+  shelter_id: number;
+  name: string;
+  capacity: number;
+  type: number;
+}
+
+export type ShelterCollection = FeatureCollection<Point, ShelterProps>;
+
+/** 대피소별 대피율 시계열 (ShelterStatus.txt) */
+export interface ShelterRateSeries {
+  /** 수용 인원 */
+  cap: number;
+  /** 배정 인원 */
+  assign: number;
+  /** 시점별 누적 도착 인원 */
+  arrival: number[];
+  /** 시점별 대피율(%) */
+  pct: number[];
+}
+
+export interface ShelterStatus {
+  /** 시점(초) — arrival/pct 배열의 축 */
+  times: number[];
+  /** ShelterID(문자열) → 시계열 */
+  shelters: Record<string, ShelterRateSeries>;
+}
+
+/** 특정 시점의 대피소 상태 스냅샷 (지도 색·팝업용) */
+export interface ShelterRate {
+  cap: number;
+  assign: number;
+  arrival: number;
+  pct: number;
 }
 
 /** Scenario_{n}.arg 에서 읽은 설정 */
@@ -67,6 +108,7 @@ export interface SessionInfo {
 export interface ScenarioSummary {
   linkTraffic: LinkTrafficSummary | null;
   vehiclePositions: VehiclePositionsSummary | null;
+  shelters: ShelterSummary | null;
 }
 
 /** 차량 위치 스냅샷 묶음. positions는 (lng,lat) interleave, 프레임 i = [offsets[i], offsets[i+1]) */

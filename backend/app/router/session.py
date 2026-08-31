@@ -12,8 +12,9 @@ from ..schemas.session import (
     SessionApiResponse,
     SessionCreateRequest,
     SessionInfo,
+    SessionListApiResponse,
 )
-from ..services import link_traffic, vehicle_positions
+from ..services import link_traffic, shelter, shelter_status, vehicle_positions
 from ..services.chunk_upload import ChunkUploadService
 from ..services.session import SessionService
 from ..services.zip_file import ZipFileService
@@ -40,6 +41,19 @@ async def create_session(
     )
     return SessionApiResponse(
         success=True, message="세션이 생성되었습니다", data=SessionInfo(**meta)
+    )
+
+
+@router.get("", response_model=SessionListApiResponse, summary="세션 목록")
+async def list_sessions(
+    sessions: SessionService = Depends(get_session_service),
+):
+    """만료되지 않은 기존 세션 목록 (최근 생성 순). 재업로드 없이 이어보기 위한 용도"""
+    metas = sessions.list_all()
+    return SessionListApiResponse(
+        success=True,
+        message="세션 목록 조회 성공",
+        data=[SessionInfo(**m) for m in metas],
     )
 
 
@@ -89,6 +103,8 @@ _SCENARIO_FILES = {
     "vehicle-positions.json": (vehicle_positions.META_FILE, "application/json"),
     "vehicle-positions.bin": (vehicle_positions.BIN_FILE, "application/octet-stream"),
     "vehicle-info.json": (vehicle_positions.INFO_FILE, "application/json"),
+    "shelters.geojson": (shelter.GEOJSON_FILE, "application/geo+json"),
+    "shelter-status.json": (shelter_status.STATUS_FILE, "application/json"),
 }
 
 

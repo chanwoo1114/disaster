@@ -9,7 +9,7 @@ import SelectionCard, { type SelectionCardData } from './map/SelectionCard';
 import SetupPanel from './setup/SetupPanel';
 import Timeline, { formatClock } from './playback/Timeline';
 import { usePlayback } from './playback/usePlayback';
-import { createSession, deleteSession, fetchLinkTraffic, fetchVehicleFrames, fetchVehicleInfo, prepareScenario } from './api/client';
+import { createSession, deleteSession, fetchLinkTraffic, fetchShelters, fetchShelterStatus, fetchVehicleFrames, fetchVehicleInfo, listSessions, prepareScenario } from './api/client';
 import { uploadZipInChunks } from './upload/chunkUpload';
 import {
   LINK_QUERY_LAYERS,
@@ -26,6 +26,7 @@ import {
   findVehicleRow,
 } from './map/vehicleLayer';
 import { removeEvacZones, updateEvacZones } from './map/evacZones';
+import { addShelterLayers, removeShelterLayers, setShelterLayersVisible, setShelterRates } from './map/shelters';
 import { isDarkBasemap, type Basemap } from './map/vworldStyle';
 import type {
   DisasterType,
@@ -37,6 +38,9 @@ import type {
   ScenarioSummary,
   Selection,
   SessionInfo,
+  ShelterCollection,
+  ShelterRate,
+  ShelterStatus,
   Target,
   VehicleFrames,
   VehicleInfoMap,
@@ -51,6 +55,7 @@ export default function App() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState<SessionInfo | null>(null);
+  const [savedSessions, setSavedSessions] = useState<SessionInfo[]>([]);
 
   const [basemap, setBasemap] = useState<Basemap>('light');
   const [styleVersion, setStyleVersion] = useState(0);
@@ -63,11 +68,14 @@ export default function App() {
   const [traffic, setTraffic] = useState<LinkTraffic | null>(null);
   const [vehicles, setVehicles] = useState<VehicleFrames | null>(null);
   const [vehInfo, setVehInfo] = useState<VehicleInfoMap>({});
+  const [shelters, setShelters] = useState<ShelterCollection | null>(null);
+  const [shelterStatus, setShelterStatus] = useState<ShelterStatus | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
 
   // 처음에는 소통정보만 켜고 나머지는 사용자가 토글로 켠다
   const [showTraffic, setShowTraffic] = useState(true);
   const [showVehicles, setShowVehicles] = useState(false);
+  const [showShelters, setShowShelters] = useState(true);
   const [selection, setSelection] = useState<Selection | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -76,8 +84,8 @@ export default function App() {
   const painterRef = useRef<LinkTrafficPainter | null>(null);
   const indexRef = useRef(0);
 
-  // 타임라인 축: 소통정보가 있으면 그것, 없으면 차량 스냅샷 시각
-  const playTimes = traffic?.times ?? vehicles?.times ?? null;
+  // 타임라인 축: 소통정보 > 차량 스냅샷 > 대피율 시점 순으로 사용
+  const playTimes = traffic?.times ?? vehicles?.times ?? shelterStatus?.times ?? null;
   const playback = usePlayback(playTimes?.length ?? 0);
   indexRef.current = playback.index;
 
@@ -171,9 +179,12 @@ export default function App() {
     setTraffic(null);
     setVehicles(null);
     setVehInfo({});
+    setShelters(null);
+    setShelterStatus(null);
     setScenSummary(null);
     setShowTraffic(true);
     setShowVehicles(false);
+    setShowShelters(true);
   }, []);
 
   // 대상지는 사용자가 처음 지정한 위치를 그대로 유지한다 (자동 이동 없음)
@@ -222,6 +233,10 @@ export default function App() {
       tasks.push(fetchVehicleFrames(session.sessionId, scenario, controller.signal).then(setVehicles));
       tasks.push(fetchVehicleInfo(session.sessionId, scenario, controller.signal).then(setVehInfo));
     }
+    if (scenSummary.shelters) {
+      tasks.push(fetchShelters(session.sessionId, scenario, controller.signal).then(setShelters));
+      tasks.push(fetchShelterStatus(session.sessionId, scenario, controller.signal).then(setShelterStatus));
+    }
     if (!tasks.length) return;
 
     setDataLoading(true);
@@ -263,6 +278,59 @@ export default function App() {
     if (!map || !mapReady || !traffic) return;
     setLinkLayersVisible(map, showTraffic);
   }, [showTraffic, traffic, mapReady, styleVersion]);
+
+  // ── 대피소 포인트 레이어 (배경 교체 시 styleVersion으로 다시 얹는다) ──
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    if (!shelters) {
+      removeShelterLayers(map);
+      return;
+    }
+    addShelterLayers(map, shelters);
+    setShelterLayersVisible(map, showShelters);
+    return () => {
+      if (map.getStyle()) removeShelterLayers(map);
+    };
+    // showShelters는 아래 토글 effect에서 반영하므로 의존성에서 제외
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shelters, mapReady, styleVersion]);
+
+  // 대피소 표시 토글
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !shelters) return;
+    setShelterLayersVisible(map, showShelters);
+  }, [showShelters, shelters, mapReady, styleVersion]);
+
+  // 현재 재생 시각의 대피소 대피율 스냅샷 (ShelterID → rate)
+  const currentShelterRates = useMemo(() => {
+    const m = new Map<number, ShelterRate>();
+    if (!shelterStatus) return m;
+    const now = playTimes?.[playback.index] ?? -Infinity;
+    // 현재 시각 이하의 마지막 시점 인덱스 (없으면 -1 = 아직 대피 전)
+    let idx = -1;
+    for (let i = 0; i < shelterStatus.times.length; i++) {
+      if (shelterStatus.times[i] <= now) idx = i;
+      else break;
+    }
+    for (const [id, s] of Object.entries(shelterStatus.shelters)) {
+      m.set(Number(id), {
+        cap: s.cap,
+        assign: s.assign,
+        arrival: idx >= 0 ? s.arrival[idx] : 0,
+        pct: idx >= 0 ? s.pct[idx] : 0,
+      });
+    }
+    return m;
+  }, [shelterStatus, playTimes, playback.index]);
+
+  // 대피율 스냅샷 → 마커 색·팝업 반영
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !shelters) return;
+    setShelterRates(map, currentShelterRates);
+  }, [currentShelterRates, shelters, mapReady, styleVersion]);
 
   // ── 원자력 대피 권역: 원 4개(5/30/45/50km) 검은 선 + 풍향 반대 3섹터 피해범위 빨간 면 ──
   useEffect(() => {
@@ -362,6 +430,32 @@ export default function App() {
     setError(null);
   };
 
+  // 설정 화면일 때 기존 세션 목록을 불러온다 (재업로드 없이 이어보기)
+  const refreshSessions = useCallback(() => {
+    listSessions()
+      .then(setSavedSessions)
+      .catch(() => setSavedSessions([]));
+  }, []);
+
+  useEffect(() => {
+    if (phase === 'setup') refreshSessions();
+  }, [phase, refreshSessions]);
+
+  // 기존 세션을 그대로 이어본다 — 업로드 단계를 건너뛰고 바로 ready 로
+  const handleLoadSession = useCallback(
+    (info: SessionInfo) => {
+      resetScenarioData();
+      setScenario(null);
+      setFile(null);
+      setDisasterType(info.disasterType);
+      setTarget({ lng: info.lng, lat: info.lat, source: 'manual' });
+      setSession(info);
+      setError(null);
+      setPhase('ready');
+    },
+    [resetScenarioData],
+  );
+
   const handleStart = async () => {
     if (!disasterType || !target || !file) return;
     const controller = new AbortController();
@@ -392,10 +486,10 @@ export default function App() {
     }
   };
 
+  // 세션은 서버에 남긴다(이어보기용). 로컬 상태만 초기화하고 설정 화면으로.
   const handleReset = () => {
     abortRef.current?.abort();
     abortRef.current = null;
-    if (session) void deleteSession(session.sessionId).catch(() => undefined);
 
     playback.reset();
     resetScenarioData();
@@ -409,6 +503,17 @@ export default function App() {
     setError(null);
     setPhase('setup');
   };
+
+  // 목록에서 기존 세션 삭제 (서버 폴더까지 제거)
+  const handleDeleteSession = useCallback(
+    (id: string) => {
+      void deleteSession(id)
+        .catch(() => undefined)
+        .finally(refreshSessions);
+      setSavedSessions((prev) => prev.filter((s) => s.sessionId !== id));
+    },
+    [refreshSessions],
+  );
 
   // ── 선택 정보 카드 데이터 ─────────────────────────────────────────────
   const timeSec = playTimes?.[playback.index] ?? 0;
@@ -501,15 +606,20 @@ export default function App() {
         summary={scenSummary}
         showTraffic={showTraffic}
         showVehicles={showVehicles}
+        showShelters={showShelters}
         onToggleTraffic={() => setShowTraffic((v) => !v)}
         onToggleVehicles={() => setShowVehicles((v) => !v)}
+        onToggleShelters={() => setShowShelters((v) => !v)}
         onStart={handleStart}
         onReset={handleReset}
+        savedSessions={savedSessions}
+        onLoadSession={handleLoadSession}
+        onDeleteSession={handleDeleteSession}
       />
 
       <div className="absolute right-4 top-4 flex flex-col items-end gap-2">
         <BasemapSwitcher value={basemap} onChange={setBasemap} />
-        <Legend showTraffic={!!traffic && showTraffic} showTarget={!!target} />
+        <Legend showTraffic={!!traffic && showTraffic} showTarget={!!target} showShelters={!!shelters && showShelters} />
         {cardData && <SelectionCard data={cardData} onClose={() => setSelection(null)} />}
       </div>
 

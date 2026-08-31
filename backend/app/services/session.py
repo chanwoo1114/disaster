@@ -9,7 +9,7 @@ from pathlib import Path
 from .. import config
 from ..schemas.exceptions import AppException
 from ..validators import zip_file_validator
-from . import link_traffic, scenario_meta, vehicle_positions
+from . import link_traffic, scenario_meta, shelter, shelter_status, vehicle_positions
 from .chunk_upload import ChunkUploadService
 from .zip_file import ZipFileService
 
@@ -168,8 +168,17 @@ class SessionService:
         else:
             vehicle_summary = vehicle_positions.build(scen_dir)
 
+        # 대피소는 시나리오 폴더가 아니라 세션 전체(InputData/Shelter)에서 찾는다
+        shelter_summary = shelter.build_or_load(self.session_dir(session_id), scen_dir)
+        # 대피율 시계열은 시나리오 결과 폴더(ShelterStatus.txt)에서
+        shelter_status.build_or_load(scen_dir)
+
         logger.info("시나리오 준비 %s/%s", session_id, name)
-        return {"link_traffic": traffic_summary, "vehicle_positions": vehicle_summary}
+        return {
+            "link_traffic": traffic_summary,
+            "vehicle_positions": vehicle_summary,
+            "shelters": shelter_summary,
+        }
 
     # ── 조회 / 삭제 ─────────────────────────────────────────────────────
 
@@ -179,6 +188,28 @@ class SessionService:
             raise AppException(404, "세션을 찾을 수 없습니다 (만료되었거나 삭제됨)")
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
+
+    def list_all(self) -> list:
+        """만료되지 않은 세션 메타 목록 (최근 생성 순)"""
+        now = datetime.now()
+        out = []
+        for sdir in self.root.iterdir():
+            if not sdir.is_dir():
+                continue
+            meta_path = sdir / "session.json"
+            if not meta_path.exists():
+                continue
+            try:
+                with open(meta_path, "r", encoding="utf-8") as f:
+                    meta = json.load(f)
+                expires = datetime.strptime(meta["expires_at"], _TIME_FMT)
+            except (OSError, ValueError, KeyError):
+                continue
+            if now >= expires:
+                continue
+            out.append(meta)
+        out.sort(key=lambda m: m.get("created_at", ""), reverse=True)
+        return out
 
     def delete(self, session_id: str) -> None:
         sdir = self.session_dir(session_id)

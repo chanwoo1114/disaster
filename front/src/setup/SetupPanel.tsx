@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Crosshair, Loader2, RotateCcw } from 'lucide-react';
+import { CheckCircle2, Crosshair, History, Loader2, RotateCcw, Trash2 } from 'lucide-react';
 import { DISASTER_LABEL, DISASTER_TYPES } from '../data/disasters';
 import { LOCATIONS } from '../data/locations';
 import UploadZone from '../upload/UploadZone';
@@ -46,10 +46,15 @@ interface Props {
   summary: ScenarioSummary | null;
   showTraffic: boolean;
   showVehicles: boolean;
+  showShelters: boolean;
   onToggleTraffic: () => void;
   onToggleVehicles: () => void;
+  onToggleShelters: () => void;
   onStart: () => void;
   onReset: () => void;
+  savedSessions: SessionInfo[];
+  onLoadSession: (info: SessionInfo) => void;
+  onDeleteSession: (id: string) => void;
 }
 
 function DataToggle({
@@ -170,10 +175,15 @@ export default function SetupPanel({
   summary,
   showTraffic,
   showVehicles,
+  showShelters,
   onToggleTraffic,
   onToggleVehicles,
+  onToggleShelters,
   onStart,
   onReset,
+  savedSessions,
+  onLoadSession,
+  onDeleteSession,
 }: Props) {
   const busy = phase === 'uploading' || phase === 'processing';
   const locations = disasterType ? LOCATIONS[disasterType] : [];
@@ -286,6 +296,13 @@ export default function SetupPanel({
                   checked={showVehicles}
                   onToggle={onToggleVehicles}
                 />
+                <DataToggle
+                  label="대피소"
+                  detail={summary.shelters ? `${summary.shelters.count.toLocaleString()}개소` : ''}
+                  available={!!summary.shelters}
+                  checked={showShelters}
+                  onToggle={onToggleShelters}
+                />
               </div>
             </section>
           )}
@@ -305,6 +322,54 @@ export default function SetupPanel({
         </div>
       ) : (
         <div className="flex flex-col gap-5 overflow-y-auto px-5 py-4">
+          {/* 0. 기존 세션 이어보기 (재업로드 없이) */}
+          {!busy && savedSessions.length > 0 && (
+            <section>
+              <div className="mb-2 flex items-center gap-2">
+                <History className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-semibold text-gray-800">이어보기</span>
+                <span className="text-[11px] text-gray-400">
+                  업로드한 세션 {savedSessions.length}개
+                </span>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {savedSessions.map((s) => (
+                  <div
+                    key={s.sessionId}
+                    className="group flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 transition-colors hover:border-blue-400 hover:bg-blue-50/50"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onLoadSession(s)}
+                      className="min-w-0 flex-1 text-left"
+                    >
+                      <span className="block text-sm font-medium text-gray-800">
+                        {DISASTER_LABEL[s.disasterType]}
+                        <span className="ml-1.5 text-[11px] font-normal text-gray-400">
+                          시나리오 {s.scenarios.length}개
+                        </span>
+                      </span>
+                      <span className="block truncate font-mono text-[11px] text-gray-500">
+                        {s.lng.toFixed(4)}, {s.lat.toFixed(4)} · {s.createdAt.replace('T', ' ').slice(5, 16)}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteSession(s.sessionId)}
+                      title="세션 삭제"
+                      className="shrink-0 rounded-md p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-500"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] text-gray-400">
+                또는 아래에서 새 시뮬레이션 결과를 업로드하세요
+              </p>
+            </section>
+          )}
+
           {/* 1. 재난 유형 */}
           <section>
             <StepLabel n={1} done={!!disasterType}>

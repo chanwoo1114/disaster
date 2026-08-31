@@ -75,6 +75,10 @@ class SessionApiResponse(ApiResponse[SessionInfo]):
         }
 
 
+class SessionListApiResponse(ApiResponse[List[SessionInfo]]):
+    pass
+
+
 class LinkTrafficSummary(BaseModel):
     radius_km: int = Field(..., description="배경 도로망 추출 반경")
     network_count: int = Field(..., description="반경 내 도로 링크 수 (회색 배경)")
@@ -90,11 +94,16 @@ class VehiclePositionsSummary(BaseModel):
     last_time: int = Field(..., description="마지막 스냅샷 시각(초)")
 
 
+class ShelterSummary(BaseModel):
+    count: int = Field(..., description="대피소 수")
+
+
 class ScenarioData(BaseModel):
     """시나리오 준비 결과 — 각 항목이 null이면 해당 데이터 없음"""
 
     link_traffic: Optional[LinkTrafficSummary] = None
     vehicle_positions: Optional[VehiclePositionsSummary] = None
+    shelters: Optional[ShelterSummary] = None
 
 
 class ScenarioApiResponse(ApiResponse[ScenarioData]):

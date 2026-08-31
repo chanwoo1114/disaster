@@ -6,6 +6,9 @@ import type {
   ScenarioMeta,
   ScenarioSummary,
   SessionInfo,
+  ShelterCollection,
+  ShelterStatus,
+  ShelterSummary,
   VehicleFrames,
   VehicleInfoMap,
   VehiclePositionsSummary,
@@ -105,6 +108,10 @@ interface VehiclePositionsSummaryRes {
   last_time: number;
 }
 
+interface ShelterSummaryRes {
+  count: number;
+}
+
 interface ScenarioArgsRes {
   season: number | null;
   day: number | null;
@@ -170,6 +177,11 @@ function toSummary(r: LinkTrafficSummaryRes | null): LinkTrafficSummary | null {
   };
 }
 
+function toShelterSummary(r: ShelterSummaryRes | null): ShelterSummary | null {
+  if (!r) return null;
+  return { count: r.count };
+}
+
 function toSession(r: SessionRes): SessionInfo {
   return {
     sessionId: r.session_id,
@@ -183,6 +195,12 @@ function toSession(r: SessionRes): SessionInfo {
   };
 }
 
+/** 만료되지 않은 기존 세션 목록 (최근순). 재업로드 없이 이어보기용 */
+export async function listSessions(): Promise<SessionInfo[]> {
+  const r = await request<SessionRes[]>('/session', { method: 'GET' });
+  return r.map(toSession);
+}
+
 /** 시나리오 산출물 준비 — 없으면 서버가 생성 (수 초~수십 초) */
 export async function prepareScenario(
   sessionId: string,
@@ -192,6 +210,7 @@ export async function prepareScenario(
   const r = await request<{
     link_traffic: LinkTrafficSummaryRes | null;
     vehicle_positions: VehiclePositionsSummaryRes | null;
+    shelters: ShelterSummaryRes | null;
   }>(`/session/${sessionId}/scenario/${encodeURIComponent(scenario)}/prepare`, {
     method: 'POST',
     signal,
@@ -199,7 +218,44 @@ export async function prepareScenario(
   return {
     linkTraffic: toSummary(r.link_traffic),
     vehiclePositions: toVehicleSummary(r.vehicle_positions),
+    shelters: toShelterSummary(r.shelters),
   };
+}
+
+/** 대피소 포인트 GeoJSON. 없으면 null */
+export async function fetchShelters(
+  sessionId: string,
+  scenario: string,
+  signal?: AbortSignal,
+): Promise<ShelterCollection | null> {
+  try {
+    const res = await rawFetch(
+      `/session/${sessionId}/scenario/${encodeURIComponent(scenario)}/file/shelters.geojson`,
+      { signal },
+    );
+    return (await res.json()) as ShelterCollection;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') throw e;
+    return null;
+  }
+}
+
+/** 대피소 대피율 시계열. 없으면(예: 데이터 없는 시나리오) null */
+export async function fetchShelterStatus(
+  sessionId: string,
+  scenario: string,
+  signal?: AbortSignal,
+): Promise<ShelterStatus | null> {
+  try {
+    const res = await rawFetch(
+      `/session/${sessionId}/scenario/${encodeURIComponent(scenario)}/file/shelter-status.json`,
+      { signal },
+    );
+    return (await res.json()) as ShelterStatus;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') throw e;
+    return null;
+  }
 }
 
 export async function createSession(params: {
