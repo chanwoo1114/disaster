@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from ..config import PROJECTS_DIR
+from ..config import SESSIONS_DIR
 from ..schemas.exceptions import AppException
 from .cache import cache
 
@@ -64,7 +64,7 @@ def _read_position_file(file: Path) -> pd.DataFrame | None:
 
 
 def preload_position(disaster_type: str, directory: str) -> tuple[str, str, dict]:
-    base_dir = PROJECTS_DIR / directory
+    base_dir = SESSIONS_DIR / directory
 
     if not base_dir.exists():
         raise AppException(404, f"폴더를 찾을 수 없습니다: {directory}")

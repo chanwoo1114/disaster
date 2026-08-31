@@ -2,32 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-    * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-    }
-
-    html, body, #root {
-        height: 100vh;
-        width: 100vw;
-        overflow: hidden;
-    }
-
-    video {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        object-fit: cover;
-        z-index: -1;
-    }
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
 }
 
-.vw-logo,
-.vw-notice,
-.vw-scale-line {
-    display: none !important;
+/* 타임라인 슬라이더: 진행 구간은 파란색, 나머지는 회색 */
+.timeline-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(to right, #2563eb 0 var(--pct, 0%), #e5e7eb var(--pct, 0%) 100%);
+  outline: none;
+  cursor: pointer;
+}
+.timeline-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid #2563eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.timeline-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid #2563eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }

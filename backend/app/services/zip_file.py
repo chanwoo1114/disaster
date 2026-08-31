@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class ZipFileService:
     """ZIP 파일 처리 서비스"""
 
-    ALLOWED_EXTENSIONS = [".txt"]
+    ALLOWED_EXTENSIONS = [".txt", ".arg"]
 
     def __init__(self, base_path: Optional[str] = None):
         if base_path is None:
@@ -90,7 +90,7 @@ class ZipFileService:
             추출된 파일 목록
         """
         zip_file = Path(zip_path)
-        extract_dir = Path(extract_to)
+        extract_dir = Path(extract_to).resolve()
         extract_dir.mkdir(parents=True, exist_ok=True)
 
         extensions = allowed_extensions or self.ALLOWED_EXTENSIONS
@@ -98,26 +98,27 @@ class ZipFileService:
 
         with zipfile.ZipFile(zip_file, "r") as zf:
             for member in zf.infolist():
-                # 디렉토리 건너뛰기
                 if member.is_dir():
                     continue
 
-                # 경로 탐색 공격 방지
-                member_path = Path(member.filename)
-                if ".." in str(member_path):
-                    continue
+                # 폴더 구조를 유지해 추출한다 (같은 파일명이 폴더별로 존재하므로 평탄화 금지)
+                parts = Path(member.filename.replace("\\", "/")).parts
+                if any(p in ("..", "") or ":" in p for p in parts):
+                    continue  # 경로 탐색 공격 방지
 
-                # 확장자 필터링
-                ext = member_path.suffix.lower()
+                ext = Path(parts[-1]).suffix.lower()
                 if ext not in extensions:
                     continue
 
-                # 파일 추출
-                target_path = extract_dir / member_path.name
-                with zf.open(member) as source, open(target_path, "wb") as target:
-                    target.write(source.read())
+                target_path = extract_dir.joinpath(*parts)
+                if not target_path.resolve().is_relative_to(extract_dir):
+                    continue
 
-                extracted_files.append(str(target_path))
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                with zf.open(member) as source, open(target_path, "wb") as target:
+                    shutil.copyfileobj(source, target)
+
+                extracted_files.append(str(target_path.relative_to(extract_dir)))
 
         zip_file.unlink()
 

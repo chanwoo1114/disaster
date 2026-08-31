@@ -9,7 +9,7 @@ from shapely.geometry import LineString, MultiLineString, Point
 from shapely.ops import transform
 from shapely.strtree import STRtree
 
-from ..config import DATA_DIR, PROJECTS_DIR
+from ..config import DATA_DIR, SESSIONS_DIR
 from ..schemas.exceptions import AppException
 from .disaster_geometry import _TO_METERS, _TO_WGS84
 
@@ -264,7 +264,7 @@ def _create_walking_link(
 
 def _load_cached_road(directory: str) -> List[Dict] | None:
     """캐시된 road geometry JSON 파일 로드"""
-    cache_path = PROJECTS_DIR / directory / "road_geometry.json"
+    cache_path = SESSIONS_DIR / directory / "road_geometry.json"
     if cache_path.exists():
         with open(cache_path, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -273,7 +273,7 @@ def _load_cached_road(directory: str) -> List[Dict] | None:
 
 def _save_road_cache(directory: str, data: List[Dict]) -> None:
     """road geometry 결과를 JSON 파일로 저장"""
-    cache_dir = PROJECTS_DIR / directory
+    cache_dir = SESSIONS_DIR / directory
     cache_dir.mkdir(parents=True, exist_ok=True)
     cache_path = cache_dir / "road_geometry.json"
     with open(cache_path, "w", encoding="utf-8") as f:

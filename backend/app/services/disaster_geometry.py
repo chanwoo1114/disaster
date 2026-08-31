@@ -9,7 +9,7 @@ from shapely.geometry import Point, Polygon, mapping
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform
 
-from ..config import PROJECTS_DIR
+from ..config import SESSIONS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ def _geometries_to_dict_list(geometries: List[BaseGeometry]) -> List[Dict]:
 
 def _load_cached_geometry(directory: str, filename: str) -> Optional[dict]:
     """캐시된 geometry JSON 파일 로드"""
-    cache_path = PROJECTS_DIR / directory / filename
+    cache_path = SESSIONS_DIR / directory / filename
     if cache_path.exists():
         with open(cache_path, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -73,7 +73,7 @@ def _load_cached_geometry(directory: str, filename: str) -> Optional[dict]:
 
 def _save_geometry_cache(directory: str, filename: str, data: dict) -> None:
     """geometry 결과를 JSON 파일로 저장"""
-    cache_dir = PROJECTS_DIR / directory
+    cache_dir = SESSIONS_DIR / directory
     cache_dir.mkdir(parents=True, exist_ok=True)
     cache_path = cache_dir / filename
     with open(cache_path, "w", encoding="utf-8") as f:

@@ -18,3 +18,9 @@ backend/app/data/
 
 # OS
 .DS_Store
+
+# 시뮬레이션 데이터 (대용량)
+*.zip
+
+# tt.zip은 예외적으로 포함 (Git LFS)
+!tt.zip
