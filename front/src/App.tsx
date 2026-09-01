@@ -9,7 +9,7 @@ import SelectionCard, { type SelectionCardData } from './map/SelectionCard';
 import SetupPanel from './setup/SetupPanel';
 import Timeline, { formatClock } from './playback/Timeline';
 import { usePlayback } from './playback/usePlayback';
-import { createSession, deleteSession, fetchLinkTraffic, fetchShelters, fetchShelterStatus, fetchVehicleFrames, fetchVehicleInfo, listSessions, prepareScenario } from './api/client';
+import { createSession, deleteSession, fetchAdmZones, fetchLinkTraffic, fetchShelters, fetchShelterStatus, fetchVehicleFrames, fetchVehicleInfo, listSessions, prepareScenario } from './api/client';
 import { uploadZipInChunks } from './upload/chunkUpload';
 import {
   LINK_QUERY_LAYERS,
@@ -25,10 +25,12 @@ import {
   buildVehicleLayer,
   findVehicleRow,
 } from './map/vehicleLayer';
-import { removeEvacZones, updateEvacZones } from './map/evacZones';
+import { ADM_RADIUS_KM, damagePolygonOf, removeEvacZones, updateEvacZones } from './map/evacZones';
+import { removeAdmZones, updateAdmZones } from './map/admZones';
 import { addShelterLayers, removeShelterLayers, setShelterLayersVisible, setShelterRates } from './map/shelters';
 import { isDarkBasemap, type Basemap } from './map/vworldStyle';
 import type {
+  AdmZones,
   DisasterType,
   LinkProps,
   LinkTraffic,
@@ -70,12 +72,13 @@ export default function App() {
   const [vehInfo, setVehInfo] = useState<VehicleInfoMap>({});
   const [shelters, setShelters] = useState<ShelterCollection | null>(null);
   const [shelterStatus, setShelterStatus] = useState<ShelterStatus | null>(null);
+  const [admZones, setAdmZones] = useState<AdmZones | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
 
-  // 처음에는 소통정보만 켜고 나머지는 사용자가 토글로 켠다
+  // 최초 진입 시 소통정보만 켠다. 새 레이어는 무조건 false로 시작 — docs/FRONTEND_DISPLAY_RULES.md
   const [showTraffic, setShowTraffic] = useState(true);
   const [showVehicles, setShowVehicles] = useState(false);
-  const [showShelters, setShowShelters] = useState(true);
+  const [showShelters, setShowShelters] = useState(false);
   const [selection, setSelection] = useState<Selection | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -182,9 +185,11 @@ export default function App() {
     setShelters(null);
     setShelterStatus(null);
     setScenSummary(null);
+    setAdmZones(null);
+    // useState 초기값과 반드시 같게 유지 — 소통정보만 켠다 (docs/FRONTEND_DISPLAY_RULES.md)
     setShowTraffic(true);
     setShowVehicles(false);
-    setShowShelters(true);
+    setShowShelters(false);
   }, []);
 
   // 대상지는 사용자가 처음 지정한 위치를 그대로 유지한다 (자동 이동 없음)
@@ -354,6 +359,47 @@ export default function App() {
       if (map.getStyle()) removeEvacZones(map);
     };
   }, [phase, session, scenario, target, mapReady, styleVersion]);
+
+  // ── 행정동 경계: 토글 없이 항상 맨 아래에 깔리는 필수 레이어 ──
+  useEffect(() => {
+    if (admZones || !session || !target || phase !== 'ready') return;
+
+    const meta = scenario ? session.scenarios.find((s) => s.name === scenario) : null;
+    // 지도에 그려진 것과 같은 피해범위 폴리곤을 그대로 보내 hit 판정을 맡긴다
+    const damage =
+      session.disasterType === 'nuclear' && meta
+        ? damagePolygonOf({
+            lng: target.lng,
+            lat: target.lat,
+            windDirection: meta.args?.windDirection ?? null,
+            windSpeedCode: meta.args?.windSpeed ?? null,
+          })
+        : null;
+
+    const ctrl = new AbortController();
+    fetchAdmZones(session.sessionId, target.lng, target.lat, ADM_RADIUS_KM, damage, ctrl.signal)
+      .then(setAdmZones)
+      .catch((e) => {
+        if (e instanceof DOMException && e.name === 'AbortError') return;
+        setError(e instanceof Error ? e.message : '행정동을 불러오지 못했습니다');
+          });
+
+    return () => ctrl.abort();
+  }, [admZones, session, scenario, target, phase]);
+
+  // 행정동 레이어 (배경 교체 시 styleVersion으로 다시 얹는다)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    if (!admZones) {
+      removeAdmZones(map);
+      return;
+    }
+    updateAdmZones(map, admZones);
+    return () => {
+      if (map.getStyle()) removeAdmZones(map);
+    };
+  }, [admZones, mapReady, styleVersion]);
 
   // 선택된 링크 강조
   useEffect(() => {
@@ -579,6 +625,7 @@ export default function App() {
       <MapView
         basemap={basemap}
         target={target}
+        disasterType={session?.disasterType ?? disasterType}
         pickMode={pickMode}
         onPick={handlePick}
         onMapClick={handleMapClick}
@@ -619,7 +666,12 @@ export default function App() {
 
       <div className="absolute right-4 top-4 flex flex-col items-end gap-2">
         <BasemapSwitcher value={basemap} onChange={setBasemap} />
-        <Legend showTraffic={!!traffic && showTraffic} showTarget={!!target} showShelters={!!shelters && showShelters} />
+        <Legend
+          showTraffic={!!traffic && showTraffic}
+          showTarget={!!target}
+          showShelters={!!shelters && showShelters}
+          showAdm={!!admZones}
+        />
         {cardData && <SelectionCard data={cardData} onClose={() => setSelection(null)} />}
       </div>
 

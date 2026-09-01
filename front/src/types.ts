@@ -1,4 +1,11 @@
-import type { FeatureCollection, LineString, MultiLineString, Point } from 'geojson';
+import type {
+  FeatureCollection,
+  LineString,
+  MultiLineString,
+  MultiPolygon,
+  Point,
+  Polygon,
+} from 'geojson';
 
 export type DisasterType = 'nuclear' | 'chemistry' | 'storm' | 'flood' | 'complex';
 
@@ -168,3 +175,12 @@ export interface LinkTraffic {
 }
 
 export type Phase = 'setup' | 'uploading' | 'processing' | 'ready';
+
+/** 행정동(읍면동) 경계. hit = 피해범위(PAZ 5km + 풍향 섹터)에 걸치는 행정동 */
+export interface AdmProps {
+  code: string;
+  name: string;
+  hit: boolean;
+}
+
+export type AdmZones = FeatureCollection<Polygon | MultiPolygon, AdmProps>;

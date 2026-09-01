@@ -17,23 +17,83 @@ export const TRAFFIC_COLORS = {
   nodata: '#9aa0a6',
 };
 
-/** 3단계 분류 (속도 / 자유속도). 범례와 지도 색이 이 표 하나로 결정된다 */
-export const TRAFFIC_CLASSES = [
-  { label: '원활', range: '70% 이상', min: 0.7, color: TRAFFIC_COLORS.free },
-  { label: '서행', range: '40–70%', min: 0.4, color: TRAFFIC_COLORS.slow },
-  { label: '정체', range: '40% 미만', min: 0, color: TRAFFIC_COLORS.jam },
+export type RoadGroupKey = 'urban' | 'urbanExpwy' | 'highway';
+
+/**
+ * 도로 등급별 소통 등급 기준 (현재 속도, km/h).
+ * 범례·지도 색·선택 카드가 이 표 하나로 결정되므로, 기준을 바꾸려면 여기만 고치면 된다.
+ */
+export const ROAD_GROUPS: { key: RoadGroupKey; label: string; slow: number; free: number }[] = [
+  { key: 'urban', label: '도시부', slow: 15, free: 25 },
+  { key: 'urbanExpwy', label: '도시고속', slow: 30, free: 50 },
+  { key: 'highway', label: '고속도로', slow: 40, free: 80 },
 ];
 
+/**
+ * MOCT 도로등급 코드 → 기준 그룹.
+ * 101 고속도로, 102 도시고속도로. 나머지(103 일반국도 ~ 108 기타)는 도시부 기준을 쓴다.
+ */
+export const RANK_TO_GROUP: Record<string, RoadGroupKey> = {
+  '101': 'highway',
+  '102': 'urbanExpwy',
+};
+
+export function roadGroup(rank: string | null): (typeof ROAD_GROUPS)[number] {
+  const key = (rank && RANK_TO_GROUP[rank]) || 'urban';
+  return ROAD_GROUPS.find((g) => g.key === key) ?? ROAD_GROUPS[0];
+}
+
+/** 3단계 소통 등급 (빠른 쪽부터) */
+export const TRAFFIC_CLASSES = [
+  { key: 'free', label: '원활', color: TRAFFIC_COLORS.free },
+  { key: 'slow', label: '서행', color: TRAFFIC_COLORS.slow },
+  { key: 'jam', label: '정체', color: TRAFFIC_COLORS.jam },
+] as const;
+
+export type TrafficClassKey = (typeof TRAFFIC_CLASSES)[number]['key'];
+
+/** 범례 칸에 들어갈 속도 범위 문자열 */
+export function rangeText(g: { slow: number; free: number }, key: TrafficClassKey): string {
+  if (key === 'free') return `${g.free} 이상`;
+  if (key === 'slow') return `${g.slow}~${g.free}`;
+  return `${g.slow} 미만`;
+}
+
+/** 현재 속도 + 도로 등급 → 소통 등급 */
+export function trafficClassOf(speed: number, rank: string | null): (typeof TRAFFIC_CLASSES)[number] {
+  const g = roadGroup(rank);
+  if (speed >= g.free) return TRAFFIC_CLASSES[0];
+  if (speed >= g.slow) return TRAFFIC_CLASSES[1];
+  return TRAFFIC_CLASSES[2];
+}
+
+/** 한 도로 그룹의 속도 → 색 step 표현식 */
+function stepFor(g: { slow: number; free: number }): unknown[] {
+  return [
+    'step',
+    ['coalesce', ['feature-state', 'speed'], 999],
+    TRAFFIC_COLORS.jam,
+    g.slow,
+    TRAFFIC_COLORS.slow,
+    g.free,
+    TRAFFIC_COLORS.free,
+  ];
+}
+
 function colorExpression() {
-  // step: 기준값 오름차순으로 나열해야 하므로 정체 → 원활 순
-  const asc = [...TRAFFIC_CLASSES].sort((a, b) => a.min - b.min);
-  const steps: (string | number)[] = [asc[0].color];
-  for (const c of asc.slice(1)) steps.push(c.min, c.color);
+  // 도로 등급(properties.rank)으로 기준표를 고르고, 그 안에서 현재 속도로 색을 정한다
+  const match: unknown[] = ['match', ['get', 'rank']];
+  for (const [rank, key] of Object.entries(RANK_TO_GROUP)) {
+    const g = ROAD_GROUPS.find((x) => x.key === key);
+    if (g) match.push(rank, stepFor(g));
+  }
+  match.push(stepFor(roadGroup(null))); // 기본값 = 도시부
+
   return [
     'case',
     ['boolean', ['feature-state', 'nodata'], true],
     TRAFFIC_COLORS.nodata,
-    ['step', ['coalesce', ['feature-state', 'ratio'], 1], ...steps],
+    match,
   ];
 }
 
@@ -133,7 +193,7 @@ export function removeLinkLayers(map: MLMap): void {
  * 직전 값과 같은 링크는 건너뛰어 setFeatureState 호출을 줄인다.
  */
 export class LinkTrafficPainter {
-  private last: Float32Array; // 링크별 마지막 ratio (-1 = nodata, -2 = 초기)
+  private last: Float32Array; // 링크별 마지막 속도(km/h, 정수) (-1 = nodata, -2 = 초기)
 
   constructor(
     private map: MLMap,
@@ -143,7 +203,7 @@ export class LinkTrafficPainter {
   }
 
   apply(tIndex: number): void {
-    const { linkIds, speeds, vols, fspeed, noData, times, hours } = this.traffic;
+    const { linkIds, speeds, vols, noData, times, hours } = this.traffic;
     const L = linkIds.length;
     if (tIndex < 0 || tIndex >= times.length) return;
 
@@ -155,20 +215,14 @@ export class LinkTrafficPainter {
     for (let i = 0; i < L; i++) {
       const sp = speeds[rowS + i];
       const vol = hi >= 0 ? vols[rowV + i] : 0;
-      let ratio: number;
-      if (sp === noData || vol === 0) {
-        ratio = -1;
-      } else {
-        const fs = fspeed[i] || sp || 1;
-        ratio = Math.min(1, sp / fs);
-        ratio = Math.round(ratio * 100) / 100;
-      }
-      if (ratio === this.last[i]) continue;
-      this.last[i] = ratio;
+      // 1 km/h 단위로 반올림해서 같은 값이면 setFeatureState를 건너뛴다
+      const spd = sp === noData || vol === 0 ? -1 : Math.round(sp);
+      if (spd === this.last[i]) continue;
+      this.last[i] = spd;
 
       const ref = { source: LINK_SOURCE, id: linkIds[i] };
-      if (ratio < 0) this.map.setFeatureState(ref, { nodata: true, ratio: 1 });
-      else this.map.setFeatureState(ref, { nodata: false, ratio });
+      if (spd < 0) this.map.setFeatureState(ref, { nodata: true, speed: 999 });
+      else this.map.setFeatureState(ref, { nodata: false, speed: spd });
     }
   }
 

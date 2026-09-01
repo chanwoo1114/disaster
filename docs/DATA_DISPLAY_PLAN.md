@@ -65,6 +65,9 @@ Result/S_x/*             기존 S_1.zip과 동일 (VehicleLocation/LinkTravelInf
 
 ## 4. 표출 우선순위
 
+> 아래 레이어를 추가할 때의 기본 표출 규칙(새 레이어는 기본 꺼짐, 최초에는 소통정보만)은
+> [FRONTEND_DISPLAY_RULES.md](FRONTEND_DISPLAY_RULES.md) 참조.
+
 **P1 — 다음 단계에서 바로**
 1. **시나리오 선택**: 세션 생성 시 `Result/S_*` 스캔 → 각각 산출물 생성, 패널에 시나리오 드롭다운
 2. **대피소 레이어**: Shelter ⋈ ShelterStatus. 점(크기=수용력) + 시간 연동 도착률 색/게이지, 클릭 카드(이름·수용력·배정·도착·%)

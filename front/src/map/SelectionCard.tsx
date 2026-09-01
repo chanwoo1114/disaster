@@ -1,5 +1,5 @@
 import { Bus, Route, X } from 'lucide-react';
-import { TRAFFIC_CLASSES, TRAFFIC_COLORS } from './linkTraffic';
+import { TRAFFIC_COLORS, roadGroup, trafficClassOf } from './linkTraffic';
 import { formatClock } from '../playback/Timeline';
 import type { VehicleAuxInfo } from '../types';
 
@@ -51,14 +51,6 @@ function Row({ label, value }: { label: string; value: string }) {
       <span className="text-xs font-medium tabular-nums text-gray-800">{value}</span>
     </div>
   );
-}
-
-function trafficClass(speed: number, fspeed: number) {
-  const ratio = fspeed > 0 ? Math.min(1, speed / fspeed) : 1;
-  for (const c of TRAFFIC_CLASSES) {
-    if (ratio >= c.min) return c;
-  }
-  return TRAFFIC_CLASSES[TRAFFIC_CLASSES.length - 1];
 }
 
 export default function SelectionCard({ data, onClose }: { data: SelectionCardData; onClose: () => void }) {
@@ -140,18 +132,16 @@ export default function SelectionCard({ data, onClose }: { data: SelectionCardDa
               <Row label="속도" value={`${data.speed} km/h`} />
               {data.fspeed !== null && data.fspeed > 0 && <Row label="자유 속도" value={`${data.fspeed} km/h`} />}
               <Row label="시간대 교통량" value={`${data.vol?.toLocaleString()}대/h`} />
-              {data.fspeed !== null && data.fspeed > 0 && (
-                <div className="flex items-center gap-1.5 pt-1">
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: trafficClass(data.speed, data.fspeed).color }}
-                  />
-                  <span className="text-xs font-medium text-gray-700">
-                    {trafficClass(data.speed, data.fspeed).label} (
-                    {Math.round((data.speed / data.fspeed) * 100)}%)
-                  </span>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 pt-1">
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ backgroundColor: trafficClassOf(data.speed, data.rank).color }}
+                />
+                <span className="text-xs font-medium text-gray-700">
+                  {trafficClassOf(data.speed, data.rank).label} ({data.speed} km/h ·{' '}
+                  {roadGroup(data.rank).label} 기준)
+                </span>
+              </div>
             </>
           )}
         </div>

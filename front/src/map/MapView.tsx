@@ -3,11 +3,14 @@ import maplibregl, { type IControl, type Map as MLMap, Marker } from 'maplibre-g
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { buildStyle, type Basemap } from './vworldStyle';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, VWORLD_API_KEY } from '../config';
-import type { LngLat, Target } from '../types';
+import { createRadiationMarkerElement } from './radiationIcon';
+import type { DisasterType, LngLat, Target } from '../types';
 
 interface Props {
   basemap: Basemap;
   target: Target | null;
+  /** 원자력이면 대상지 마커를 방사능 표지로 바꾼다 */
+  disasterType: DisasterType | null;
   pickMode: boolean;
   onPick: (p: LngLat) => void;
   /** 대상지 선택 모드가 아닐 때의 일반 클릭 (화면 픽셀 좌표 포함) */
@@ -25,6 +28,7 @@ interface Props {
 export default function MapView({
   basemap,
   target,
+  disasterType,
   pickMode,
   onPick,
   onMapClick,
@@ -34,6 +38,8 @@ export default function MapView({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MLMap | null>(null);
   const markerRef = useRef<Marker | null>(null);
+  // 마커 종류가 바뀌면 다시 만들어야 해서 현재 종류를 들고 있는다
+  const markerKindRef = useRef<'nuclear' | 'default' | null>(null);
   const basemapRef = useRef(basemap);
 
   // 콜백/모드는 ref로 들고 있어 클릭 핸들러를 다시 바인딩하지 않는다
@@ -106,13 +112,25 @@ export default function MapView({
     if (!target) {
       markerRef.current?.remove();
       markerRef.current = null;
+      markerKindRef.current = null;
       return;
     }
 
+    const kind = disasterType === 'nuclear' ? 'nuclear' : 'default';
+    if (markerRef.current && markerKindRef.current !== kind) {
+      markerRef.current.remove();
+      markerRef.current = null;
+    }
+
     if (!markerRef.current) {
-      markerRef.current = new maplibregl.Marker({ color: '#ef4444' })
+      markerRef.current = new maplibregl.Marker(
+        kind === 'nuclear'
+          ? { element: createRadiationMarkerElement() }
+          : { color: '#ef4444' },
+      )
         .setLngLat([target.lng, target.lat])
         .addTo(map);
+      markerKindRef.current = kind;
     } else {
       markerRef.current.setLngLat([target.lng, target.lat]);
     }
@@ -121,7 +139,7 @@ export default function MapView({
     if (target.source === 'list') {
       map.flyTo({ center: [target.lng, target.lat], zoom: 12, duration: 1200, essential: true });
     }
-  }, [target]);
+  }, [target, disasterType]);
 
   return <div ref={containerRef} className="absolute inset-0" />;
 }

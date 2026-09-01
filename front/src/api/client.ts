@@ -1,5 +1,8 @@
+import type { Polygon } from 'geojson';
+
 import { BACKEND_URL } from '../config';
 import type {
+  AdmZones,
   DisasterType,
   LinkTraffic,
   LinkTrafficSummary,
@@ -398,4 +401,30 @@ export async function fetchVehicleInfo(
     if (e instanceof DOMException && e.name === 'AbortError') throw e;
     return {};
   }
+}
+
+/**
+ * 대상지 반경 내 행정동 경계.
+ * damageGeometry(지도에 그린 피해범위 폴리곤)를 함께 보내면 걸치는 행정동에 hit=true 가 붙는다.
+ * 서버가 최초 1회 adm.csv(320MB)를 parquet으로 변환하므로 첫 호출은 수십 초 걸릴 수 있다.
+ */
+export async function fetchAdmZones(
+  sessionId: string,
+  lng: number,
+  lat: number,
+  analysisDistance: number,
+  damageGeometry: Polygon | null,
+  signal?: AbortSignal,
+): Promise<AdmZones> {
+  const data = await request<{ features: AdmZones['features'] }>('/geometry/adm-zones', {
+    ...json({
+      directory: sessionId,
+      lng,
+      lat,
+      analysis_distance: analysisDistance,
+      damage_geometry: damageGeometry,
+    }),
+    signal,
+  });
+  return { type: 'FeatureCollection', features: data.features };
 }

@@ -3,18 +3,45 @@ import type { Feature, FeatureCollection, Polygon } from 'geojson';
 
 /**
  * 원자력 대피 권역 표출
- * - 검은 선: PAZ 5 / UPZ 30 / 그림자 대피권역 45 / 대피범위 50 km 원
- * - 빨간 면: 피해범위 = PAZ 원 + 풍향 반대 3섹터(16방위, PAZ→풍속거리)
+ * - PAZ 5km: 분홍 반투명 면
+ * - 10/20/30km: 각각 16방위 쐐기로 분할해 연파랑 반투명 면으로 표출.
+ *   쐐기를 원판이 아니라 고리(0–10 / 10–20 / 20–30) 로 잘라 서로 겹치지 않게 한다.
+ *   겹치면 그만큼 색이 진해져 권역마다 농도가 달라 보이기 때문이다.
+ * - 45/50km: 채움 없이 검은 점선 원만
+ * - 16방위 분할선: 중심 → 30km (참조 SQL의 radial_distance = max(distances))
+ * - 피해범위: PAZ 원 + 풍향 반대 3섹터(PAZ→풍속거리) 빨간 면
  *   풍향 코드: 1=북, 시계방향 2,3… / 풍속 코드: 1=10km, 2=20km, 3=30km
  */
 
 const SOURCE = 'evac-zones';
-const RING_LINE = 'evac-rings-line';
+const WEDGE_FILL = 'evac-wedge-fill';
+const PAZ_FILL = 'evac-paz-fill';
 const DAMAGE_FILL = 'evac-damage-fill';
+const SECTOR_LINE = 'evac-sector-line';
+const RING_LINE = 'evac-rings-line';
 const DAMAGE_LINE = 'evac-damage-line';
 
-export const NUCLEAR_RADII_KM = [5, 30, 45, 50];
+export const EVAC_COLORS = {
+  wedge: '#87a3c7',
+  paz: '#dc2626',
+  damage: '#dc2626',
+  ring: '#000000',
+};
+
 const PAZ_KM = 5;
+/** 16방위 쐐기로 분할해 채우는 권역 */
+const WEDGE_KM = [10, 20, 30];
+/** 채움·분할 없이 검은 점선 원만 그리는 바깥 권역 */
+const RING_ONLY_KM = [45, 50];
+/**
+ * 16방위 분할선 길이. 참조 코드(get_multiple_circles_split_16_wedges)가
+ * radial_distance = max(distances) 로 고정 방사선을 만들어 모든 원을 같은 경계로 자르므로,
+ * 분할 대상 권역 중 가장 바깥(30km)까지 그린다.
+ */
+const SECTOR_LINE_KM = Math.max(...WEDGE_KM);
+/** 행정동 조회 반경. 실질 분석은 30km까지만 한다 (45/50은 참고용 점선) */
+export const ADM_RADIUS_KM = Math.max(...WEDGE_KM);
+/** 쐐기 0번이 정북(0°) 중심 → 경계각은 -11.25° 부터 22.5° 간격 (참조 SQL과 동일) */
 const SECTOR_DEG = 22.5;
 const WIND_SPEED_KM: Record<number, number> = { 1: 10, 2: 20, 3: 30 };
 
@@ -67,7 +94,7 @@ function circlePolygon(lng: number, lat: number, rKm: number): Polygon {
  * 풍향이 있으면: PAZ 원 ∪ (반대 3섹터의 PAZ→풍속거리 부채꼴) 를 한 링으로 구성
  * 풍향이 없으면(무풍/미상): PAZ 원만
  */
-function damagePolygon(
+export function damagePolygon(
   lng: number,
   lat: number,
   windDirection: number | null,
@@ -101,19 +128,68 @@ export interface EvacZoneOptions {
   windSpeedCode: number | null;
 }
 
-function buildData(opts: EvacZoneOptions): FeatureCollection {
-  const features: Feature[] = NUCLEAR_RADII_KM.map((r) => ({
-    type: 'Feature',
-    properties: { kind: 'ring', radius: r },
-    geometry: circlePolygon(opts.lng, opts.lat, r),
-  }));
-
+/** EvacZoneOptions → 지도에 그려지는 것과 동일한 피해범위 폴리곤 (행정동 hit 판정에 재사용) */
+export function damagePolygonOf(opts: EvacZoneOptions): Polygon {
   const windKm = WIND_SPEED_KM[opts.windSpeedCode ?? 0] ?? 0;
+  return damagePolygon(opts.lng, opts.lat, opts.windDirection, windKm);
+}
+
+function buildData(opts: EvacZoneOptions): FeatureCollection {
+  const { lng, lat } = opts;
+  const features: Feature[] = [];
+
+  // 10/20/30km × 16방위 = 48개 쐐기. 고리로 잘라 겹치지 않게 한다
+  WEDGE_KM.forEach((rOuter, band) => {
+    const rInner = band === 0 ? 0 : WEDGE_KM[band - 1];
+    for (let i = 0; i < 16; i++) {
+      const a0 = i * SECTOR_DEG - SECTOR_DEG / 2;
+      const a1 = a0 + SECTOR_DEG;
+      const ring: [number, number][] = [
+        ...arcPoints(lng, lat, rOuter, a0, a1, 12),
+        // 안쪽 호를 역방향으로 이어 고리를 닫는다. 최내곽은 중심점 하나로 부채꼴이 된다
+        ...(rInner > 0 ? arcPoints(lng, lat, rInner, a1, a0, 12) : [[lng, lat] as [number, number]]),
+      ];
+      ring.push(ring[0]);
+      features.push({
+        type: 'Feature',
+        properties: { kind: 'wedge', radius: rOuter, innerRadius: rInner, sector: i },
+        geometry: { type: 'Polygon', coordinates: [ring] },
+      });
+    }
+  });
+
+  features.push({
+    type: 'Feature',
+    properties: { kind: 'paz' },
+    geometry: circlePolygon(lng, lat, PAZ_KM),
+  });
   features.push({
     type: 'Feature',
     properties: { kind: 'damage' },
-    geometry: damagePolygon(opts.lng, opts.lat, opts.windDirection, windKm),
+    geometry: damagePolygonOf(opts),
   });
+
+  // 검은 점선 원: 분할 권역 경계 + 바깥 권역
+  for (const r of [...WEDGE_KM, ...RING_ONLY_KM]) {
+    features.push({
+      type: 'Feature',
+      properties: { kind: 'ring', radius: r },
+      geometry: { type: 'LineString', coordinates: arcPoints(lng, lat, r, 0, 360, 128) },
+    });
+  }
+
+  // 16방위 분할선: 섹터 경계마다 중심 → 30km
+  for (let i = 0; i < 16; i++) {
+    const bearing = i * SECTOR_DEG - SECTOR_DEG / 2;
+    features.push({
+      type: 'Feature',
+      properties: { kind: 'sector' },
+      geometry: {
+        type: 'LineString',
+        coordinates: [[lng, lat], destination(lng, lat, SECTOR_LINE_KM, bearing)],
+      },
+    });
+  }
 
   return { type: 'FeatureCollection', features };
 }
@@ -131,40 +207,65 @@ export function updateEvacZones(map: MLMap, opts: EvacZoneOptions): void {
   // 링크 레이어가 이미 있으면 그 아래에 깐다
   const before = map.getLayer('links-casing') ? 'links-casing' : undefined;
 
-  map.addLayer(
-    {
-      id: DAMAGE_FILL,
-      type: 'fill',
-      source: SOURCE,
-      filter: ['==', ['get', 'kind'], 'damage'],
-      paint: { 'fill-color': '#dc2626', 'fill-opacity': 0.2 },
+  const add = (layer: Parameters<MLMap['addLayer']>[0]) => map.addLayer(layer, before);
+
+  // 고리로 잘라 겹침이 없으므로 어느 권역이든 같은 농도로 보인다
+  add({
+    id: WEDGE_FILL,
+    type: 'fill',
+    source: SOURCE,
+    filter: ['==', ['get', 'kind'], 'wedge'],
+    paint: { 'fill-color': EVAC_COLORS.wedge, 'fill-opacity': 0.25 },
+  });
+  add({
+    id: PAZ_FILL,
+    type: 'fill',
+    source: SOURCE,
+    filter: ['==', ['get', 'kind'], 'paz'],
+    paint: { 'fill-color': EVAC_COLORS.paz, 'fill-opacity': 0.18 },
+  });
+  add({
+    id: DAMAGE_FILL,
+    type: 'fill',
+    source: SOURCE,
+    filter: ['==', ['get', 'kind'], 'damage'],
+    paint: { 'fill-color': EVAC_COLORS.damage, 'fill-opacity': 0.4 },
+  });
+  add({
+    id: SECTOR_LINE,
+    type: 'line',
+    source: SOURCE,
+    filter: ['==', ['get', 'kind'], 'sector'],
+    paint: {
+      'line-color': EVAC_COLORS.ring,
+      'line-width': 1,
+      'line-opacity': 0.7,
+      'line-dasharray': [1, 2],
     },
-    before,
-  );
-  map.addLayer(
-    {
-      id: DAMAGE_LINE,
-      type: 'line',
-      source: SOURCE,
-      filter: ['==', ['get', 'kind'], 'damage'],
-      paint: { 'line-color': '#dc2626', 'line-width': 2 },
+  });
+  add({
+    id: RING_LINE,
+    type: 'line',
+    source: SOURCE,
+    filter: ['==', ['get', 'kind'], 'ring'],
+    paint: {
+      'line-color': EVAC_COLORS.ring,
+      'line-width': 1.2,
+      'line-opacity': 0.8,
+      'line-dasharray': [1, 2],
     },
-    before,
-  );
-  map.addLayer(
-    {
-      id: RING_LINE,
-      type: 'line',
-      source: SOURCE,
-      filter: ['==', ['get', 'kind'], 'ring'],
-      paint: { 'line-color': '#000000', 'line-width': 1.5, 'line-opacity': 0.8 },
-    },
-    before,
-  );
+  });
+  add({
+    id: DAMAGE_LINE,
+    type: 'line',
+    source: SOURCE,
+    filter: ['==', ['get', 'kind'], 'damage'],
+    paint: { 'line-color': EVAC_COLORS.damage, 'line-width': 1.5 },
+  });
 }
 
 export function removeEvacZones(map: MLMap): void {
-  for (const id of [DAMAGE_FILL, DAMAGE_LINE, RING_LINE]) {
+  for (const id of [DAMAGE_LINE, RING_LINE, SECTOR_LINE, DAMAGE_FILL, PAZ_FILL, WEDGE_FILL]) {
     if (map.getLayer(id)) map.removeLayer(id);
   }
   if (map.getSource(SOURCE)) map.removeSource(SOURCE);
