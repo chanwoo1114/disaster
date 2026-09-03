@@ -1,17 +1,29 @@
 import { Fragment } from 'react';
 
-import { ADM_COLORS } from './admZones';
+import { ADM_COLORS, ADM_EVAC_COLORS } from './admZones';
 import { ROAD_GROUPS, TRAFFIC_CLASSES, TRAFFIC_COLORS, rangeText } from './linkTraffic';
 
 interface Props {
   showTraffic: boolean;
-  showTarget: boolean;
   showShelters: boolean;
   showAdm: boolean;
+  /** 존별 대피율 데이터가 있어 행정동이 대피율 색으로 칠해지는 상태 */
+  showEvacRate: boolean;
+  /** 색칠 기준 라벨 (구역 이탈률 / 구호소 도착률) */
+  evacMetricLabel: string;
+  /** 특수시설(학교 등) 점이 함께 표시되는 상태 */
+  showEtc: boolean;
 }
 
-export default function Legend({ showTraffic, showTarget, showShelters, showAdm }: Props) {
-  if (!showTraffic && !showTarget && !showShelters && !showAdm) return null;
+export default function Legend({
+  showTraffic,
+  showShelters,
+  showAdm,
+  showEvacRate,
+  evacMetricLabel,
+  showEtc,
+}: Props) {
+  if (!showTraffic && !showShelters && !showAdm) return null;
 
   return (
     <div className="w-[248px] rounded-lg border border-gray-200 bg-white/95 px-3 py-2.5 text-xs shadow-lg backdrop-blur">
@@ -79,8 +91,27 @@ export default function Legend({ showTraffic, showTarget, showShelters, showAdm 
       )}
 
       {showAdm && (
-        <div className="mb-2 border-t border-gray-100 pt-2">
+        <div className="border-t border-gray-100 pt-2">
           <p className="mb-1 text-[11px] text-gray-500">행정동</p>
+
+          {showEvacRate && (
+            <div className="mb-1.5">
+              <div className="flex items-center gap-2">
+                <span
+                  className="inline-block h-2.5 flex-1 rounded-full border border-black/20"
+                  style={{
+                    background: `linear-gradient(90deg,${ADM_EVAC_COLORS.low},${ADM_EVAC_COLORS.mid},${ADM_EVAC_COLORS.high})`,
+                  }}
+                />
+              </div>
+              <div className="mt-0.5 flex justify-between text-[10px] tabular-nums text-gray-400">
+                <span>{evacMetricLabel} 0%</span>
+                <span>50%</span>
+                <span>100%</span>
+              </div>
+            </div>
+          )}
+
           <ul className="space-y-1">
             <li className="flex items-center gap-2">
               <span
@@ -94,19 +125,18 @@ export default function Legend({ showTraffic, showTarget, showShelters, showAdm 
                 className="inline-block h-3 w-4 shrink-0 rounded-sm border border-black/70"
                 style={{ backgroundColor: ADM_COLORS.hit, opacity: 0.6 }}
               />
-              <span className="text-gray-700">피해범위 포함</span>
+              <span className="text-gray-700">피해범위 포함 (결과 없음)</span>
             </li>
+            {showEtc && (
+              <li className="flex items-center gap-2">
+                <span
+                  className="inline-block h-3 w-3 shrink-0 rounded-full border-2"
+                  style={{ borderColor: '#1e3a8a', backgroundColor: ADM_EVAC_COLORS.mid }}
+                />
+                <span className="text-gray-700">특수시설 (학교 등, 대피율 색)</span>
+              </li>
+            )}
           </ul>
-        </div>
-      )}
-
-      {showTarget && (
-        <div className="flex items-center gap-2 border-t border-gray-100 pt-2">
-          <svg width="14" height="18" viewBox="0 0 14 18" className="shrink-0">
-            <path d="M7 0a7 7 0 0 0-7 7c0 5 7 11 7 11s7-6 7-11a7 7 0 0 0-7-7z" fill="#ef4444" />
-            <circle cx="7" cy="7" r="2.5" fill="#fff" />
-          </svg>
-          <span className="text-gray-700">대상지</span>
         </div>
       )}
     </div>

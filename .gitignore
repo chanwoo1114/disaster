@@ -24,3 +24,4 @@ backend/app/data/
 
 # tt.zip은 예외적으로 포함 (Git LFS)
 !tt.zip
+img.png

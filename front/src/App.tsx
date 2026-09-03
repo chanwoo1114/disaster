@@ -9,7 +9,7 @@ import SelectionCard, { type SelectionCardData } from './map/SelectionCard';
 import SetupPanel from './setup/SetupPanel';
 import Timeline, { formatClock } from './playback/Timeline';
 import { usePlayback } from './playback/usePlayback';
-import { createSession, deleteSession, fetchAdmZones, fetchLinkTraffic, fetchShelters, fetchShelterStatus, fetchVehicleFrames, fetchVehicleInfo, listSessions, prepareScenario } from './api/client';
+import { createSession, deleteSession, fetchAdmZones, fetchLinkTraffic, fetchShelters, fetchShelterStatus, fetchVehicleFrames, fetchVehicleInfo, fetchZoneEvac, listSessions, prepareScenario } from './api/client';
 import { uploadZipInChunks } from './upload/chunkUpload';
 import {
   LINK_QUERY_LAYERS,
@@ -26,7 +26,15 @@ import {
   findVehicleRow,
 } from './map/vehicleLayer';
 import { ADM_RADIUS_KM, damagePolygonOf, removeEvacZones, updateEvacZones } from './map/evacZones';
-import { removeAdmZones, updateAdmZones } from './map/admZones';
+import { ADM_FILL_LAYER, clearAdmEvacRates, removeAdmZones, setAdmEvacRates, setSelectedAdm, updateAdmZones } from './map/admZones';
+import {
+  ETC_QUERY_LAYER,
+  addEtcFacilityLayer,
+  buildEtcGeoJSON,
+  removeEtcFacilityLayer,
+  setEtcFacilityRates,
+  setEtcFacilityVisible,
+} from './map/etcFacilities';
 import { addShelterLayers, removeShelterLayers, setShelterLayersVisible, setShelterRates } from './map/shelters';
 import { isDarkBasemap, type Basemap } from './map/vworldStyle';
 import type {
@@ -46,6 +54,7 @@ import type {
   Target,
   VehicleFrames,
   VehicleInfoMap,
+  ZoneEvac,
 } from './types';
 
 export default function App() {
@@ -73,12 +82,17 @@ export default function App() {
   const [shelters, setShelters] = useState<ShelterCollection | null>(null);
   const [shelterStatus, setShelterStatus] = useState<ShelterStatus | null>(null);
   const [admZones, setAdmZones] = useState<AdmZones | null>(null);
+  const [zoneEvac, setZoneEvac] = useState<ZoneEvac | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
 
   // 최초 진입 시 소통정보만 켠다. 새 레이어는 무조건 false로 시작 — docs/FRONTEND_DISPLAY_RULES.md
   const [showTraffic, setShowTraffic] = useState(true);
   const [showVehicles, setShowVehicles] = useState(false);
   const [showShelters, setShowShelters] = useState(false);
+  const [showZoneEvac, setShowZoneEvac] = useState(false);
+  const [showEtcFacilities, setShowEtcFacilities] = useState(false);
+  /** 지도 색칠 기준 — exit: 구역 이탈률(상주), shelter: 구호소 도착률 */
+  const [zoneMetric, setZoneMetric] = useState<'exit' | 'shelter'>('exit');
   const [selection, setSelection] = useState<Selection | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -172,6 +186,38 @@ export default function App() {
       }
     }
 
+    // 특수시설 점 (행정동 대피율 토글 on이어야 렌더되어 잡힌다)
+    if (map && map.getLayer(ETC_QUERY_LAYER)) {
+      const bbox: [PointLike, PointLike] = [
+        [e.x - 6, e.y - 6],
+        [e.x + 6, e.y + 6],
+      ];
+      const feats = map.queryRenderedFeatures(bbox, { layers: [ETC_QUERY_LAYER] });
+      const f = feats[0];
+      if (f?.properties?.id != null) {
+        setSelection({
+          kind: 'adm',
+          code: String(f.properties.id),
+          name: String(f.properties.name ?? ''),
+        });
+        return;
+      }
+    }
+
+    // 마지막 순위: 행정동 폴리곤 (배경 레이어라 어디를 눌러도 잡힌다)
+    if (map && map.getLayer(ADM_FILL_LAYER)) {
+      const feats = map.queryRenderedFeatures([e.x, e.y] as PointLike, { layers: [ADM_FILL_LAYER] });
+      const f = feats[0];
+      if (f?.properties?.code != null) {
+        setSelection({
+          kind: 'adm',
+          code: String(f.properties.code),
+          name: String(f.properties.name ?? ''),
+        });
+        return;
+      }
+    }
+
     setSelection(null);
   }, []);
 
@@ -186,10 +232,14 @@ export default function App() {
     setShelterStatus(null);
     setScenSummary(null);
     setAdmZones(null);
+    setZoneEvac(null);
     // useState 초기값과 반드시 같게 유지 — 소통정보만 켠다 (docs/FRONTEND_DISPLAY_RULES.md)
     setShowTraffic(true);
     setShowVehicles(false);
     setShowShelters(false);
+    setShowZoneEvac(false);
+    setShowEtcFacilities(false);
+    setZoneMetric('exit');
   }, []);
 
   // 대상지는 사용자가 처음 지정한 위치를 그대로 유지한다 (자동 이동 없음)
@@ -242,6 +292,8 @@ export default function App() {
       tasks.push(fetchShelters(session.sessionId, scenario, controller.signal).then(setShelters));
       tasks.push(fetchShelterStatus(session.sessionId, scenario, controller.signal).then(setShelterStatus));
     }
+    // 행정동 클릭 카드용 존별 대피율 — 없으면 null (관용적 fetch)
+    tasks.push(fetchZoneEvac(session.sessionId, scenario, controller.signal).then(setZoneEvac));
     if (!tasks.length) return;
 
     setDataLoading(true);
@@ -407,6 +459,74 @@ export default function App() {
     if (!map || !mapReady || !traffic) return;
     setSelectedLink(map, selection?.kind === 'link' ? selection.linkId : null);
   }, [selection, traffic, mapReady, styleVersion]);
+
+  // 선택된 행정동 강조
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !admZones) return;
+    setSelectedAdm(map, selection?.kind === 'adm' ? selection.code : null);
+  }, [selection, admZones, mapReady, styleVersion]);
+
+  // 현재 시각의 행정동별 상주 대피율 (코로플레스용)
+  const currentZoneRates = useMemo(() => {
+    const m = new Map<string, number>();
+    if (!zoneEvac) return m;
+    const now = playTimes?.[playback.index] ?? -Infinity;
+    let zi = -1;
+    for (let i = 0; i < zoneEvac.times.length; i++) {
+      if (zoneEvac.times[i] <= now) zi = i;
+      else break;
+    }
+    for (const [code, z] of Object.entries(zoneEvac.zones)) {
+      const series = zoneMetric === 'shelter' ? z.shelterPct : z.permPct;
+      m.set(code, zi >= 0 ? series[zi] : 0);
+    }
+    return m;
+  }, [zoneEvac, playTimes, playback.index, zoneMetric]);
+
+  // 대피율 → 행정동 색 반영 (토글 on일 때만, 재생에 따라 흰색 → 파랑으로 채워진다)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !admZones) return;
+    if (!showZoneEvac || currentZoneRates.size === 0) {
+      clearAdmEvacRates(map);
+      return;
+    }
+    setAdmEvacRates(map, currentZoneRates);
+  }, [currentZoneRates, admZones, showZoneEvac, mapReady, styleVersion]);
+
+  // 특수시설 점 대피율 색 (별도 토글)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !etcGeo || !showEtcFacilities) return;
+    setEtcFacilityRates(map, currentZoneRates);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentZoneRates, showEtcFacilities, mapReady, styleVersion]);
+
+  // 특수시설(학교 등) 점 레이어 — 행정동 대피율 토글과 함께 표시
+  const etcGeo = useMemo(() => (zoneEvac ? buildEtcGeoJSON(zoneEvac) : null), [zoneEvac]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    if (!etcGeo) {
+      removeEtcFacilityLayer(map);
+      return;
+    }
+    addEtcFacilityLayer(map, etcGeo);
+    setEtcFacilityVisible(map, showEtcFacilities);
+    return () => {
+      if (map.getStyle()) removeEtcFacilityLayer(map);
+    };
+    // showEtcFacilities는 아래 토글 effect에서 반영
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [etcGeo, mapReady, styleVersion]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !etcGeo) return;
+    setEtcFacilityVisible(map, showEtcFacilities);
+  }, [showEtcFacilities, etcGeo, mapReady, styleVersion]);
 
   // 처음 데이터를 받았을 때 카메라를 범위로
   useEffect(() => {
@@ -605,6 +725,45 @@ export default function App() {
       fspeed,
       vol,
     };
+  } else if (selection?.kind === 'adm') {
+    const z = zoneEvac?.zones[selection.code] ?? null;
+    // 현재 시각 이하의 마지막 시점 (없으면 아직 대피 전 = 0)
+    let zi = -1;
+    if (zoneEvac && z) {
+      for (let i = 0; i < zoneEvac.times.length; i++) {
+        if (zoneEvac.times[i] <= timeSec) zi = i;
+        else break;
+      }
+    }
+    cardData = {
+      kind: 'adm',
+      code: selection.code,
+      name: selection.name,
+      timeSec,
+      facility: zoneEvac?.etc?.[selection.code]?.type ?? null,
+      hasData: !!z,
+      area: z?.area ?? null,
+      perm: z?.perm ?? null,
+      temp: z?.temp ?? null,
+      permPct: z ? (zi >= 0 ? z.permPct[zi] : 0) : null,
+      tempPct: z ? (zi >= 0 ? z.tempPct[zi] : 0) : null,
+      shelterPct: z ? (zi >= 0 ? z.shelterPct[zi] : 0) : null,
+      shelterArr: z ? (zi >= 0 ? z.shelterArr[zi] : 0) : null,
+      permByArea: z?.permByArea
+        ? {
+            PAZ: zi >= 0 ? z.permByArea.PAZ[zi] : 0,
+            UPZW: zi >= 0 ? z.permByArea.UPZW[zi] : 0,
+            UPZ: zi >= 0 ? z.permByArea.UPZ[zi] : 0,
+          }
+        : null,
+      tempByArea: z?.tempByArea
+        ? {
+            PAZ: zi >= 0 ? z.tempByArea.PAZ[zi] : 0,
+            UPZW: zi >= 0 ? z.tempByArea.UPZW[zi] : 0,
+            UPZ: zi >= 0 ? z.tempByArea.UPZ[zi] : 0,
+          }
+        : null,
+    };
   }
 
   const vehicleInfo = !vehicles || !showVehicles
@@ -657,6 +816,22 @@ export default function App() {
         onToggleTraffic={() => setShowTraffic((v) => !v)}
         onToggleVehicles={() => setShowVehicles((v) => !v)}
         onToggleShelters={() => setShowShelters((v) => !v)}
+        showZoneEvac={showZoneEvac}
+        zoneEvacDetail={
+          zoneEvac
+            ? `행정동 ${Object.keys(zoneEvac.zones).length}곳 · ${zoneEvac.times.length}개 시점`
+            : null
+        }
+        onToggleZoneEvac={() => setShowZoneEvac((v) => !v)}
+        zoneMetric={zoneMetric}
+        onZoneMetric={setZoneMetric}
+        showEtcFacilities={showEtcFacilities}
+        etcDetail={
+          etcGeo
+            ? `${etcGeo.features.length}곳 (학교 등)`
+            : null
+        }
+        onToggleEtcFacilities={() => setShowEtcFacilities((v) => !v)}
         onStart={handleStart}
         onReset={handleReset}
         savedSessions={savedSessions}
@@ -668,9 +843,11 @@ export default function App() {
         <BasemapSwitcher value={basemap} onChange={setBasemap} />
         <Legend
           showTraffic={!!traffic && showTraffic}
-          showTarget={!!target}
           showShelters={!!shelters && showShelters}
           showAdm={!!admZones}
+          showEvacRate={!!admZones && !!zoneEvac && showZoneEvac}
+          evacMetricLabel={zoneMetric === 'shelter' ? '구호소 도착률' : '구역 이탈률'}
+          showEtc={!!etcGeo && showEtcFacilities}
         />
         {cardData && <SelectionCard data={cardData} onClose={() => setSelection(null)} />}
       </div>

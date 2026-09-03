@@ -9,7 +9,7 @@ from pathlib import Path
 from .. import config
 from ..schemas.exceptions import AppException
 from ..validators import zip_file_validator
-from . import link_traffic, scenario_meta, shelter, shelter_status, vehicle_positions
+from . import link_traffic, scenario_meta, shelter, shelter_status, vehicle_positions, zone_evac
 from .chunk_upload import ChunkUploadService
 from .zip_file import ZipFileService
 
@@ -172,6 +172,8 @@ class SessionService:
         shelter_summary = shelter.build_or_load(self.session_dir(session_id), scen_dir)
         # 대피율 시계열은 시나리오 결과 폴더(ShelterStatus.txt)에서
         shelter_status.build_or_load(scen_dir)
+        # 행정동(존)별 대피율 — 행정동 클릭 카드에서 사용
+        zone_evac.build_or_load(scen_dir, self.session_dir(session_id))
 
         logger.info("시나리오 준비 %s/%s", session_id, name)
         return {

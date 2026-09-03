@@ -50,6 +50,17 @@ interface Props {
   onToggleTraffic: () => void;
   onToggleVehicles: () => void;
   onToggleShelters: () => void;
+  showZoneEvac: boolean;
+  /** 존별 대피율 요약 문구. null이면 데이터 없음 */
+  zoneEvacDetail: string | null;
+  onToggleZoneEvac: () => void;
+  /** 색칠 기준 — exit: 구역 이탈률, shelter: 구호소 도착률 */
+  zoneMetric: 'exit' | 'shelter';
+  onZoneMetric: (m: 'exit' | 'shelter') => void;
+  showEtcFacilities: boolean;
+  /** 특수시설 요약 문구. null이면 데이터 없음 */
+  etcDetail: string | null;
+  onToggleEtcFacilities: () => void;
   onStart: () => void;
   onReset: () => void;
   savedSessions: SessionInfo[];
@@ -179,6 +190,14 @@ export default function SetupPanel({
   onToggleTraffic,
   onToggleVehicles,
   onToggleShelters,
+  showZoneEvac,
+  zoneEvacDetail,
+  onToggleZoneEvac,
+  zoneMetric,
+  onZoneMetric,
+  showEtcFacilities,
+  etcDetail,
+  onToggleEtcFacilities,
   onStart,
   onReset,
   savedSessions,
@@ -302,6 +321,43 @@ export default function SetupPanel({
                   available={!!summary.shelters}
                   checked={showShelters}
                   onToggle={onToggleShelters}
+                />
+                <DataToggle
+                  label="행정동 대피율"
+                  detail={zoneEvacDetail ?? ''}
+                  available={zoneEvacDetail !== null}
+                  checked={showZoneEvac}
+                  onToggle={onToggleZoneEvac}
+                />
+                {showZoneEvac && zoneEvacDetail !== null && (
+                  <div className="-mt-1 ml-1 flex gap-0.5 rounded-lg bg-gray-100 p-0.5">
+                    {(
+                      [
+                        ['exit', '구역 이탈률'],
+                        ['shelter', '구호소 도착률'],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => onZoneMetric(key)}
+                        className={`flex-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
+                          zoneMetric === key
+                            ? 'bg-white text-blue-700 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-800'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <DataToggle
+                  label="특수시설"
+                  detail={etcDetail ?? ''}
+                  available={etcDetail !== null}
+                  checked={showEtcFacilities}
+                  onToggle={onToggleEtcFacilities}
                 />
               </div>
             </section>

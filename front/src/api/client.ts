@@ -15,6 +15,7 @@ import type {
   VehicleFrames,
   VehicleInfoMap,
   VehiclePositionsSummary,
+  ZoneEvac,
 } from '../types';
 
 interface ApiEnvelope<T> {
@@ -427,4 +428,23 @@ export async function fetchAdmZones(
     signal,
   });
   return { type: 'FeatureCollection', features: data.features };
+}
+
+/** 행정동(존)별 대피율 시계열. 산출물이 없으면 null */
+export async function fetchZoneEvac(
+  sessionId: string,
+  scenario: string,
+  signal?: AbortSignal,
+): Promise<ZoneEvac | null> {
+  try {
+    const res = await rawFetch(
+      // v=2: etc(특수시설) 추가 전 캐시를 우회하기 위한 버전 파라미터
+      `/session/${sessionId}/scenario/${encodeURIComponent(scenario)}/file/zone-evac.json?v=3`,
+      { signal },
+    );
+    return (await res.json()) as ZoneEvac;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') throw e;
+    return null;
+  }
 }

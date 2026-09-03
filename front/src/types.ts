@@ -156,7 +156,44 @@ export interface VehicleAuxInfo {
 export type VehicleInfoMap = Record<string, VehicleAuxInfo>;
 
 /** 지도에서 선택된 객체 */
-export type Selection = { kind: 'vehicle'; vehId: number } | { kind: 'link'; linkId: number };
+export type Selection =
+  | { kind: 'vehicle'; vehId: number }
+  | { kind: 'link'; linkId: number }
+  | { kind: 'adm'; code: string; name: string };
+
+/** 행정동(존)별 대피율 시계열 (EvacuationRateByZone.txt) */
+export interface ZoneEvacSeries {
+  /** 소속 구역 (PAZ | UPZW | UPZ), 파악 불가 시 null */
+  area: string | null;
+  /** 상주 대피대상 인구 */
+  perm: number;
+  /** 일시 체류 대피대상 */
+  temp: number;
+  permPct: number[];
+  tempPct: number[];
+  shelterPct: number[];
+  shelterArr: number[];
+  /** 구역별 이탈률 계열 (PAZ/UPZW/UPZ 전부) */
+  permByArea?: Record<'PAZ' | 'UPZW' | 'UPZ', number[]>;
+  tempByArea?: Record<'PAZ' | 'UPZW' | 'UPZ', number[]>;
+}
+
+/** 특수시설(학교 등) — 8자리 미만 ZoneID, special_facility.txt 매칭 */
+export interface EtcFacility {
+  name: string;
+  type: string;
+  lng: number;
+  lat: number;
+}
+
+export interface ZoneEvac {
+  /** 시점(초) — 배열들의 축 */
+  times: number[];
+  /** 행정동 코드(8자리) 또는 특수시설 id → 시계열 */
+  zones: Record<string, ZoneEvacSeries>;
+  /** 특수시설 id → 이름·좌표 (zones 에 같은 키의 시계열이 있다) */
+  etc?: Record<string, EtcFacility>;
+}
 
 /** 링크 소통정보 시계열. speeds는 [T × L] row-major, vols는 [H × L]. geojson은 반경 내 전체 도로망 */
 export interface LinkTraffic {

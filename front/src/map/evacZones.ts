@@ -3,10 +3,10 @@ import type { Feature, FeatureCollection, Polygon } from 'geojson';
 
 /**
  * 원자력 대피 권역 표출
- * - PAZ 5km: 분홍 반투명 면
- * - 10/20/30km: 각각 16방위 쐐기로 분할해 연파랑 반투명 면으로 표출.
- *   쐐기를 원판이 아니라 고리(0–10 / 10–20 / 20–30) 로 잘라 서로 겹치지 않게 한다.
- *   겹치면 그만큼 색이 진해져 권역마다 농도가 달라 보이기 때문이다.
+ * - PAZ 5km: 붉은 반투명 원판 (테두리 없음). 분할선보다 위에 그려 선이 원을 가로지르지 않는다
+ * - 10/20/30km: 각각 16방위 쐐기로 분할해 아주 옅은 연파랑 면으로 표출 (img.png 참조).
+ *   쐐기를 원판이 아니라 고리(0–10 / 10–20 / 20–30) 로 잘라 겹침을 없애고,
+ *   농도는 안쪽일수록 진하게 준다 (10 > 20 > 30).
  * - 45/50km: 채움 없이 검은 점선 원만
  * - 16방위 분할선: 중심 → 30km (참조 SQL의 radial_distance = max(distances))
  * - 피해범위: PAZ 원 + 풍향 반대 3섹터(PAZ→풍속거리) 빨간 면
@@ -178,7 +178,7 @@ function buildData(opts: EvacZoneOptions): FeatureCollection {
     });
   }
 
-  // 16방위 분할선: 섹터 경계마다 중심 → 30km
+  // 16방위 분할선: 중심 → 30km 가는 점선 (PAZ 원판이 위에 얹혀 안쪽은 가려진다)
   for (let i = 0; i < 16; i++) {
     const bearing = i * SECTOR_DEG - SECTOR_DEG / 2;
     features.push({
@@ -209,28 +209,18 @@ export function updateEvacZones(map: MLMap, opts: EvacZoneOptions): void {
 
   const add = (layer: Parameters<MLMap['addLayer']>[0]) => map.addLayer(layer, before);
 
-  // 고리로 잘라 겹침이 없으므로 어느 권역이든 같은 농도로 보인다
+  // ① 아주 옅은 쐐기 (안쪽일수록 진하게: 10km 0.22 > 20km 0.13 > 30km 0.07)
   add({
     id: WEDGE_FILL,
     type: 'fill',
     source: SOURCE,
     filter: ['==', ['get', 'kind'], 'wedge'],
-    paint: { 'fill-color': EVAC_COLORS.wedge, 'fill-opacity': 0.25 },
+    paint: {
+      'fill-color': EVAC_COLORS.wedge,
+      'fill-opacity': ['match', ['get', 'radius'], 10, 0.22, 20, 0.13, 30, 0.07, 0.1],
+    },
   });
-  add({
-    id: PAZ_FILL,
-    type: 'fill',
-    source: SOURCE,
-    filter: ['==', ['get', 'kind'], 'paz'],
-    paint: { 'fill-color': EVAC_COLORS.paz, 'fill-opacity': 0.18 },
-  });
-  add({
-    id: DAMAGE_FILL,
-    type: 'fill',
-    source: SOURCE,
-    filter: ['==', ['get', 'kind'], 'damage'],
-    paint: { 'fill-color': EVAC_COLORS.damage, 'fill-opacity': 0.4 },
-  });
+  // ② 16방위 분할선: 가는 점선 (img.png 스타일)
   add({
     id: SECTOR_LINE,
     type: 'line',
@@ -239,8 +229,8 @@ export function updateEvacZones(map: MLMap, opts: EvacZoneOptions): void {
     paint: {
       'line-color': EVAC_COLORS.ring,
       'line-width': 1,
-      'line-opacity': 0.7,
-      'line-dasharray': [1, 2],
+      'line-opacity': 0.6,
+      'line-dasharray': [2, 2],
     },
   });
   add({
@@ -250,10 +240,25 @@ export function updateEvacZones(map: MLMap, opts: EvacZoneOptions): void {
     filter: ['==', ['get', 'kind'], 'ring'],
     paint: {
       'line-color': EVAC_COLORS.ring,
-      'line-width': 1.2,
-      'line-opacity': 0.8,
-      'line-dasharray': [1, 2],
+      'line-width': 1,
+      'line-opacity': 0.6,
+      'line-dasharray': [2, 2],
     },
+  });
+  // ③ PAZ 5km: 붉은 원판을 분할선 위에 얹는다 — 검은 선 없이 전부 빨간색
+  add({
+    id: PAZ_FILL,
+    type: 'fill',
+    source: SOURCE,
+    filter: ['==', ['get', 'kind'], 'paz'],
+    paint: { 'fill-color': EVAC_COLORS.paz, 'fill-opacity': 0.25 },
+  });
+  add({
+    id: DAMAGE_FILL,
+    type: 'fill',
+    source: SOURCE,
+    filter: ['==', ['get', 'kind'], 'damage'],
+    paint: { 'fill-color': EVAC_COLORS.damage, 'fill-opacity': 0.4 },
   });
   add({
     id: DAMAGE_LINE,
@@ -265,7 +270,7 @@ export function updateEvacZones(map: MLMap, opts: EvacZoneOptions): void {
 }
 
 export function removeEvacZones(map: MLMap): void {
-  for (const id of [DAMAGE_LINE, RING_LINE, SECTOR_LINE, DAMAGE_FILL, PAZ_FILL, WEDGE_FILL]) {
+  for (const id of [DAMAGE_LINE, DAMAGE_FILL, PAZ_FILL, RING_LINE, SECTOR_LINE, WEDGE_FILL]) {
     if (map.getLayer(id)) map.removeLayer(id);
   }
   if (map.getSource(SOURCE)) map.removeSource(SOURCE);

@@ -14,7 +14,7 @@ from ..schemas.session import (
     SessionInfo,
     SessionListApiResponse,
 )
-from ..services import link_traffic, shelter, shelter_status, vehicle_positions
+from ..services import link_traffic, shelter, shelter_status, vehicle_positions, zone_evac
 from ..services.chunk_upload import ChunkUploadService
 from ..services.session import SessionService
 from ..services.zip_file import ZipFileService
@@ -105,6 +105,7 @@ _SCENARIO_FILES = {
     "vehicle-info.json": (vehicle_positions.INFO_FILE, "application/json"),
     "shelters.geojson": (shelter.GEOJSON_FILE, "application/geo+json"),
     "shelter-status.json": (shelter_status.STATUS_FILE, "application/json"),
+    "zone-evac.json": (zone_evac.ZONE_FILE, "application/json"),
 }
 
 
@@ -128,4 +129,4 @@ async def get_scenario_file(
     if not path.exists():
         raise AppException(404, "산출물이 없습니다. 시나리오 준비(prepare)를 먼저 호출하세요")
 
-    return FileResponse(path, media_type=media_type, headers={"Cache-Control": "private, max-age=3600"})
+    return FileResponse(path, media_type=media_type, headers={"Cache-Control": "private, no-cache"})
