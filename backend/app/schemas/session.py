@@ -25,6 +25,7 @@ class ScenarioArgs(BaseModel):
     weather: Optional[int] = None
     wind_direction: Optional[int] = Field(None, description="풍향 (0=무풍, 1~16 방위)")
     wind_speed: Optional[int] = None
+    evac_criterion: Optional[int] = Field(None, description="대피기준 (1=위험지역 탈출, 2=구호소 도착)")
 
 
 class LngLatPoint(BaseModel):

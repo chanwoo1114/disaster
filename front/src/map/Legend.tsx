@@ -13,6 +13,8 @@ interface Props {
   evacMetricLabel: string;
   /** 특수시설(학교 등) 점이 함께 표시되는 상태 */
   showEtc: boolean;
+  /** 대피 경로 표시 상태 */
+  showZonePath: boolean;
 }
 
 export default function Legend({
@@ -22,8 +24,9 @@ export default function Legend({
   showEvacRate,
   evacMetricLabel,
   showEtc,
+  showZonePath,
 }: Props) {
-  if (!showTraffic && !showShelters && !showAdm) return null;
+  if (!showTraffic && !showShelters && !showAdm && !showZonePath) return null;
 
   return (
     <div className="w-[248px] rounded-lg border border-gray-200 bg-white/95 px-3 py-2.5 text-xs shadow-lg backdrop-blur">
@@ -136,6 +139,32 @@ export default function Legend({
                 <span className="text-gray-700">특수시설 (학교 등, 대피율 색)</span>
               </li>
             )}
+          </ul>
+        </div>
+      )}
+
+      {showZonePath && (
+        <div className="border-t border-gray-100 pt-2">
+          <p className="mb-1 text-[11px] text-gray-500">경로 분석</p>
+          <ul className="space-y-1">
+            <li className="flex items-center gap-2">
+              <span
+                className="inline-block h-3 w-4 shrink-0 rounded-sm"
+                style={{ backgroundColor: '#ea580c', opacity: 0.6 }}
+              />
+              <span className="text-gray-700">선택 가능한 출발지</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span
+                className="inline-block h-3 w-4 shrink-0 rounded-sm"
+                style={{ backgroundColor: '#2563eb', opacity: 0.45 }}
+              />
+              <span className="text-gray-700">선택 불가 행정동</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="inline-block h-1 w-5 shrink-0 rounded-full" style={{ backgroundColor: '#111827' }} />
+              <span className="text-gray-700">대피 경로 (통행량↑ 굵게)</span>
+            </li>
           </ul>
         </div>
       )}

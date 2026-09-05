@@ -17,6 +17,7 @@ const SOURCE = 'adm-zones';
 const FILL = 'adm-fill';
 const LINE = 'adm-line';
 const SELECTED = 'adm-selected';
+const SELECTABLE = 'adm-selectable';
 
 /** 클릭 판정에 쓸 레이어 id */
 export const ADM_FILL_LAYER = FILL;
@@ -26,6 +27,7 @@ export const ADM_COLORS = {
   hit: '#dc2626',
   line: '#000000',
   selected: '#2563eb',
+  selectable: '#7c3aed', // 경로 분석: 출발지로 선택 가능한 행정동
 };
 
 /** 존별 대피율(상주 %) 코로플레스 색 — 0% 흰색 → 100% 진파랑 */
@@ -97,6 +99,18 @@ export function updateAdmZones(map: MLMap, data: FeatureCollection): void {
     before,
   );
 
+  // 경로 분석: 출발지로 선택 가능한 행정동 강조 (보라 채움, feature-state.selectable)
+  map.addLayer(
+    {
+      id: SELECTABLE,
+      type: 'fill',
+      source: SOURCE,
+      filter: ['==', ['boolean', ['feature-state', 'selectable'], false], true],
+      paint: { 'fill-color': ADM_COLORS.selectable, 'fill-opacity': 0.3 },
+    },
+    before,
+  );
+
   // 선택 강조 — 평소엔 아무 것도 매칭하지 않는다
   map.addLayer(
     {
@@ -112,6 +126,15 @@ export function updateAdmZones(map: MLMap, data: FeatureCollection): void {
     },
     before,
   );
+}
+
+/** 경로 분석: 출발지 선택 가능한 존들을 feature-state로 강조. codes=null 이면 전부 해제 */
+export function setSelectableAdms(map: MLMap, codes: readonly string[] | null): void {
+  if (!map.getSource(SOURCE)) return;
+  map.removeFeatureState({ source: SOURCE }, 'selectable');
+  if (codes) {
+    for (const c of codes) map.setFeatureState({ source: SOURCE, id: c }, { selectable: true });
+  }
 }
 
 /** 행정동별 현재 대피율(%)을 feature-state로 반영. 코로플레스 색이 이 값을 따른다 */
@@ -133,8 +156,49 @@ export function setSelectedAdm(map: MLMap, code: string | null): void {
   map.setFilter(SELECTED, ['==', ['get', 'code'], code ?? '']);
 }
 
+/**
+ * 경로 분석 모드: 선택 불가능한 행정동을 중립 회색으로, 경계는 흰색으로.
+ * 출발지(보라, origin-zones)와 대비되고, 경계가 흰색으로 통일돼 이중으로 보이지 않는다.
+ * neutral=false 로 되돌리면 원래 hit/대피율 색·검은 경계를 복원한다.
+ */
+export function setAdmNeutral(map: MLMap, neutral: boolean): void {
+  if (!map.getLayer(FILL)) return;
+  if (neutral) {
+    map.setPaintProperty(FILL, 'fill-color', '#2563eb'); // 선택 불가 = 파랑 (주황의 보색)
+    map.setPaintProperty(FILL, 'fill-opacity', 0.45);
+    map.setPaintProperty(LINE, 'line-color', '#ffffff');
+    if (map.getLayer(SELECTED)) map.setLayoutProperty(SELECTED, 'visibility', 'none');
+  } else {
+    map.setPaintProperty(FILL, 'fill-color', [
+      'case',
+      ['>=', ['coalesce', ['feature-state', 'evacPct'], -1], 0],
+      [
+        'interpolate',
+        ['linear'],
+        ['coalesce', ['feature-state', 'evacPct'], 0],
+        0, ADM_EVAC_COLORS.low,
+        50, ADM_EVAC_COLORS.mid,
+        100, ADM_EVAC_COLORS.high,
+      ],
+      ['get', 'hit'],
+      ADM_COLORS.hit,
+      ADM_COLORS.base,
+    ] as never);
+    map.setPaintProperty(FILL, 'fill-opacity', [
+      'case',
+      ['>=', ['coalesce', ['feature-state', 'evacPct'], -1], 0],
+      0.55,
+      ['get', 'hit'],
+      0.45,
+      0.3,
+    ] as never);
+    map.setPaintProperty(LINE, 'line-color', ADM_COLORS.line);
+    if (map.getLayer(SELECTED)) map.setLayoutProperty(SELECTED, 'visibility', 'visible');
+  }
+}
+
 export function removeAdmZones(map: MLMap): void {
-  for (const id of [SELECTED, FILL, LINE]) {
+  for (const id of [SELECTED, SELECTABLE, FILL, LINE]) {
     if (map.getLayer(id)) map.removeLayer(id);
   }
   if (map.getSource(SOURCE)) map.removeSource(SOURCE);

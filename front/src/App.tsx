@@ -9,7 +9,7 @@ import SelectionCard, { type SelectionCardData } from './map/SelectionCard';
 import SetupPanel from './setup/SetupPanel';
 import Timeline, { formatClock } from './playback/Timeline';
 import { usePlayback } from './playback/usePlayback';
-import { createSession, deleteSession, fetchAdmZones, fetchLinkTraffic, fetchShelters, fetchShelterStatus, fetchVehicleFrames, fetchVehicleInfo, fetchZoneEvac, listSessions, prepareScenario } from './api/client';
+import { createSession, deleteSession, fetchAdmZones, fetchLinkTraffic, fetchOriginZones, fetchPathDests, fetchShelters, fetchShelterStatus, fetchVehicleFrames, fetchVehicleInfo, fetchZoneEvac, fetchZonePath, fetchZonePopulation, listSessions, prepareScenario } from './api/client';
 import { uploadZipInChunks } from './upload/chunkUpload';
 import {
   LINK_QUERY_LAYERS,
@@ -26,7 +26,9 @@ import {
   findVehicleRow,
 } from './map/vehicleLayer';
 import { ADM_RADIUS_KM, damagePolygonOf, removeEvacZones, updateEvacZones } from './map/evacZones';
-import { ADM_FILL_LAYER, clearAdmEvacRates, removeAdmZones, setAdmEvacRates, setSelectedAdm, updateAdmZones } from './map/admZones';
+import { ADM_FILL_LAYER, clearAdmEvacRates, removeAdmZones, setAdmEvacRates, setAdmNeutral, setSelectedAdm, updateAdmZones } from './map/admZones';
+import { ORIGIN_QUERY_LAYER, addOriginZones, removeOriginZones, setSelectedOrigin } from './map/originZones';
+import PathPanel from './map/PathPanel';
 import {
   ETC_QUERY_LAYER,
   addEtcFacilityLayer,
@@ -36,6 +38,7 @@ import {
   setEtcFacilityVisible,
 } from './map/etcFacilities';
 import { addShelterLayers, removeShelterLayers, setShelterLayersVisible, setShelterRates } from './map/shelters';
+import { removeZonePaths, updateZonePaths } from './map/zonePaths';
 import { isDarkBasemap, type Basemap } from './map/vworldStyle';
 import type {
   AdmZones,
@@ -55,6 +58,7 @@ import type {
   VehicleFrames,
   VehicleInfoMap,
   ZoneEvac,
+  ZonePopulation,
 } from './types';
 
 export default function App() {
@@ -83,6 +87,7 @@ export default function App() {
   const [shelterStatus, setShelterStatus] = useState<ShelterStatus | null>(null);
   const [admZones, setAdmZones] = useState<AdmZones | null>(null);
   const [zoneEvac, setZoneEvac] = useState<ZoneEvac | null>(null);
+  const [zonePop, setZonePop] = useState<ZonePopulation | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
 
   // 최초 진입 시 소통정보만 켠다. 새 레이어는 무조건 false로 시작 — docs/FRONTEND_DISPLAY_RULES.md
@@ -91,6 +96,12 @@ export default function App() {
   const [showShelters, setShowShelters] = useState(false);
   const [showZoneEvac, setShowZoneEvac] = useState(false);
   const [showEtcFacilities, setShowEtcFacilities] = useState(false);
+  const [showZonePath, setShowZonePath] = useState(false); // 경로 분석 모드
+  const [originZones, setOriginZones] = useState<import('geojson').FeatureCollection | null>(null);
+  const [pathOrigin, setPathOrigin] = useState<string | null>(null);
+  const [pathDests, setPathDests] = useState<import('./types').PathDest[] | null>(null);
+  const [pathDestsLoading, setPathDestsLoading] = useState(false);
+  const [pathDz, setPathDz] = useState<number | null>(null);
   /** 지도 색칠 기준 — exit: 구역 이탈률(상주), shelter: 구호소 도착률 */
   const [zoneMetric, setZoneMetric] = useState<'exit' | 'shelter'>('exit');
   const [selection, setSelection] = useState<Selection | null>(null);
@@ -146,6 +157,12 @@ export default function App() {
   showVehiclesRef.current = showVehicles;
   const frameRef = useRef(currentVehicleFrame);
   frameRef.current = currentVehicleFrame;
+  // 대피율/특수시설/경로 토글이 켜져 있으면 행정동 클릭을 링크보다 우선한다
+  const admPriorityRef = useRef(false);
+  admPriorityRef.current = showZoneEvac || showEtcFacilities || showZonePath;
+  // 경로 분석 모드: 행정동 클릭 = 출발지 선택
+  const pathModeRef = useRef(false);
+  pathModeRef.current = showZonePath;
 
   const handleMapReady = useCallback((map: MLMap, overlay: MapboxOverlay) => {
     mapRef.current = map;
@@ -170,23 +187,18 @@ export default function App() {
       }
     }
 
-    if (map && trafficRef.current && showTrafficRef.current) {
-      const bbox: [PointLike, PointLike] = [
-        [e.x - 5, e.y - 5],
-        [e.x + 5, e.y + 5],
-      ];
-      const layers = LINK_QUERY_LAYERS.filter((id) => map.getLayer(id));
-      if (layers.length) {
-        const feats = map.queryRenderedFeatures(bbox, { layers });
-        const f = feats.find((ft) => ft.properties && ft.properties.link_id != null);
-        if (f) {
-          setSelection({ kind: 'link', linkId: Number(f.properties!.link_id) });
-          return;
-        }
+    // 경로 분석 모드: 출발지 행정동 레이어를 최우선으로 잡는다
+    if (map && pathModeRef.current && map.getLayer(ORIGIN_QUERY_LAYER)) {
+      const feats = map.queryRenderedFeatures([e.x, e.y] as PointLike, { layers: [ORIGIN_QUERY_LAYER] });
+      const f = feats[0];
+      if (f?.properties?.code != null) {
+        setSelection(null);
+        setPathOrigin(String(f.properties.code));
+        return;
       }
     }
 
-    // 특수시설 점 (행정동 대피율 토글 on이어야 렌더되어 잡힌다)
+    // 특수시설 점은 항상 우선 (작아서 정확히 눌러야 하므로)
     if (map && map.getLayer(ETC_QUERY_LAYER)) {
       const bbox: [PointLike, PointLike] = [
         [e.x - 6, e.y - 6],
@@ -204,19 +216,41 @@ export default function App() {
       }
     }
 
-    // 마지막 순위: 행정동 폴리곤 (배경 레이어라 어디를 눌러도 잡힌다)
+    const pickLink = (): boolean => {
+      if (!map || !trafficRef.current || !showTrafficRef.current) return false;
+      const bbox: [PointLike, PointLike] = [
+        [e.x - 5, e.y - 5],
+        [e.x + 5, e.y + 5],
+      ];
+      const layers = LINK_QUERY_LAYERS.filter((id) => map.getLayer(id));
+      if (!layers.length) return false;
+      const feats = map.queryRenderedFeatures(bbox, { layers });
+      const f = feats.find((ft) => ft.properties && ft.properties.link_id != null);
+      if (f) {
+        setSelection({ kind: 'link', linkId: Number(f.properties!.link_id) });
+        return true;
+      }
+      return false;
+    };
+
+    // 대피율/특수시설 모드가 아닐 때만 링크를 먼저 잡는다
+    if (!admPriorityRef.current && pickLink()) return;
+
+    // 행정동 폴리곤 (배경 레이어라 어디를 눌러도 잡힌다)
     if (map && map.getLayer(ADM_FILL_LAYER)) {
       const feats = map.queryRenderedFeatures([e.x, e.y] as PointLike, { layers: [ADM_FILL_LAYER] });
       const f = feats[0];
       if (f?.properties?.code != null) {
-        setSelection({
-          kind: 'adm',
-          code: String(f.properties.code),
-          name: String(f.properties.name ?? ''),
-        });
+        const code = String(f.properties.code);
+        // 경로 분석 모드에서 여기까지 왔으면 출발지가 아닌 행정동 → 무시
+        if (pathModeRef.current) return;
+        setSelection({ kind: 'adm', code, name: String(f.properties.name ?? '') });
         return;
       }
     }
+
+    // adm 우선 모드에서 행정동이 안 잡혔으면 링크라도 시도
+    if (admPriorityRef.current && pickLink()) return;
 
     setSelection(null);
   }, []);
@@ -233,12 +267,18 @@ export default function App() {
     setScenSummary(null);
     setAdmZones(null);
     setZoneEvac(null);
+    setZonePop(null);
     // useState 초기값과 반드시 같게 유지 — 소통정보만 켠다 (docs/FRONTEND_DISPLAY_RULES.md)
     setShowTraffic(true);
     setShowVehicles(false);
     setShowShelters(false);
     setShowZoneEvac(false);
     setShowEtcFacilities(false);
+    setShowZonePath(false);
+    setOriginZones(null);
+    setPathOrigin(null);
+    setPathDests(null);
+    setPathDz(null);
     setZoneMetric('exit');
   }, []);
 
@@ -294,6 +334,10 @@ export default function App() {
     }
     // 행정동 클릭 카드용 존별 대피율 — 없으면 null (관용적 fetch)
     tasks.push(fetchZoneEvac(session.sessionId, scenario, controller.signal).then(setZoneEvac));
+    // 존별 인구·이동 요약 (세션 공통) — 한 번만 받으면 됨
+    if (!zonePop) {
+      tasks.push(fetchZonePopulation(session.sessionId, controller.signal).then(setZonePop));
+    }
     if (!tasks.length) return;
 
     setDataLoading(true);
@@ -395,7 +439,8 @@ export default function App() {
     if (!map || !mapReady) return;
 
     const meta = scenario && session ? session.scenarios.find((s) => s.name === scenario) : null;
-    if (phase !== 'ready' || session?.disasterType !== 'nuclear' || !target || !meta) {
+    // 경로 분석 모드에서는 대피 권역(원·쐐기·피해범위)을 전부 숨긴다
+    if (showZonePath || phase !== 'ready' || session?.disasterType !== 'nuclear' || !target || !meta) {
       if (map.getStyle()) removeEvacZones(map);
       return;
     }
@@ -410,7 +455,7 @@ export default function App() {
     return () => {
       if (map.getStyle()) removeEvacZones(map);
     };
-  }, [phase, session, scenario, target, mapReady, styleVersion]);
+  }, [phase, session, scenario, target, showZonePath, mapReady, styleVersion]);
 
   // ── 행정동 경계: 토글 없이 항상 맨 아래에 깔리는 필수 레이어 ──
   useEffect(() => {
@@ -467,6 +512,85 @@ export default function App() {
     setSelectedAdm(map, selection?.kind === 'adm' ? selection.code : null);
   }, [selection, admZones, mapReady, styleVersion]);
 
+  // ── 경로 분석 모드: 선택 가능한 출발지 행정동 GeoJSON 로드 ────────────
+  useEffect(() => {
+    if (!session || !showZonePath || originZones) return;
+    const controller = new AbortController();
+    fetchOriginZones(session.sessionId, controller.signal)
+      .then(setOriginZones)
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [session, showZonePath, originZones]);
+
+  // 출발지 행정동 전용 레이어 표출 (모드 on일 때만) + 행정동 채움 중립화
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    if (!showZonePath || !originZones) {
+      removeOriginZones(map);
+      if (admZones && map.getLayer(ADM_FILL_LAYER)) setAdmNeutral(map, false);
+      return;
+    }
+    // 경로 분석: 선택 불가 행정동 = 회색, 출발지 = 보라(origin-zones), 경계 흰색으로 통일
+    if (admZones && map.getLayer(ADM_FILL_LAYER)) setAdmNeutral(map, true);
+    addOriginZones(map, originZones);
+    setSelectedOrigin(map, pathOrigin);
+    return () => {
+      if (map.getStyle()) {
+        removeOriginZones(map);
+        if (admZones && map.getLayer(ADM_FILL_LAYER)) setAdmNeutral(map, false);
+      }
+    };
+    // pathOrigin 강조는 아래 별도 effect
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showZonePath, originZones, admZones, mapReady, styleVersion]);
+
+  // 선택된 출발지 강조 (카메라 이동 없음)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !showZonePath || !originZones) return;
+    setSelectedOrigin(map, pathOrigin);
+  }, [pathOrigin, showZonePath, originZones, mapReady, styleVersion]);
+
+  // 출발지 선택 → 도착지 목록 로드
+  useEffect(() => {
+    if (!session || !pathOrigin) {
+      setPathDests(null);
+      return;
+    }
+    const controller = new AbortController();
+    setPathDestsLoading(true);
+    setPathDz(null);
+    fetchPathDests(session.sessionId, pathOrigin, controller.signal)
+      .then(setPathDests)
+      .catch(() => setPathDests([]))
+      .finally(() => setPathDestsLoading(false));
+    return () => controller.abort();
+  }, [session, pathOrigin]);
+
+  // 출발지+도착지 → 그 O-D 경로 링크망 표출 (도착지까지 선택해야 표시)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !session) return;
+    if (!showZonePath || !pathOrigin || pathDz == null) {
+      removeZonePaths(map);
+      return;
+    }
+    const controller = new AbortController();
+    fetchZonePath(session.sessionId, pathOrigin, pathDz, controller.signal)
+      .then((data) => {
+        const m = mapRef.current;
+        if (!m || controller.signal.aborted) return;
+        if (data.features.length) updateZonePaths(m, data);
+        else removeZonePaths(m);
+      })
+      .catch(() => undefined);
+    return () => {
+      controller.abort();
+      if (map.getStyle()) removeZonePaths(map);
+    };
+  }, [session, showZonePath, pathOrigin, pathDz, mapReady, styleVersion]);
+
   // 현재 시각의 행정동별 상주 대피율 (코로플레스용)
   const currentZoneRates = useMemo(() => {
     const m = new Map<string, number>();
@@ -505,6 +629,14 @@ export default function App() {
 
   // 특수시설(학교 등) 점 레이어 — 행정동 대피율 토글과 함께 표시
   const etcGeo = useMemo(() => (zoneEvac ? buildEtcGeoJSON(zoneEvac) : null), [zoneEvac]);
+
+  // 출발지 드롭다운 옵션 (이름 정렬)
+  const originOptions = useMemo(() => {
+    if (!originZones) return [];
+    return originZones.features
+      .map((f) => ({ code: String(f.properties?.code), name: String(f.properties?.name ?? '') }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  }, [originZones]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -741,6 +873,7 @@ export default function App() {
       name: selection.name,
       timeSec,
       facility: zoneEvac?.etc?.[selection.code]?.type ?? null,
+      pop: zonePop?.zones[selection.code] ?? null,
       hasData: !!z,
       area: z?.area ?? null,
       perm: z?.perm ?? null,
@@ -832,6 +965,18 @@ export default function App() {
             : null
         }
         onToggleEtcFacilities={() => setShowEtcFacilities((v) => !v)}
+        showZonePath={showZonePath}
+        onToggleZonePath={() =>
+          setShowZonePath((v) => {
+            if (v) {
+              // 끄면 경로 선택 상태 초기화
+              setPathOrigin(null);
+              setPathDests(null);
+              setPathDz(null);
+            }
+            return !v;
+          })
+        }
         onStart={handleStart}
         onReset={handleReset}
         savedSessions={savedSessions}
@@ -848,8 +993,20 @@ export default function App() {
           showEvacRate={!!admZones && !!zoneEvac && showZoneEvac}
           evacMetricLabel={zoneMetric === 'shelter' ? '구호소 도착률' : '구역 이탈률'}
           showEtc={!!etcGeo && showEtcFacilities}
+          showZonePath={showZonePath}
         />
         {cardData && <SelectionCard data={cardData} onClose={() => setSelection(null)} />}
+        {showZonePath && (
+          <PathPanel
+            origins={originOptions}
+            selectedOrigin={pathOrigin}
+            onSelectOrigin={setPathOrigin}
+            dests={pathDests}
+            loading={pathDestsLoading}
+            selectedDz={pathDz}
+            onSelectDest={setPathDz}
+          />
+        )}
       </div>
 
       {pickMode && (

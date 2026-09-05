@@ -16,6 +16,9 @@ import type {
   VehicleInfoMap,
   VehiclePositionsSummary,
   ZoneEvac,
+  ZonePopulation,
+  ZonePaths,
+  PathDest,
 } from '../types';
 
 interface ApiEnvelope<T> {
@@ -123,6 +126,7 @@ interface ScenarioArgsRes {
   weather: number | null;
   wind_direction: number | null;
   wind_speed: number | null;
+  evac_criterion: number | null;
 }
 
 interface ScenarioRefRes {
@@ -154,6 +158,7 @@ function toScenario(s: ScenarioRefRes): ScenarioMeta {
           weather: s.args.weather ?? null,
           windDirection: s.args.wind_direction ?? null,
           windSpeed: s.args.wind_speed ?? null,
+          evacCriterion: s.args.evac_criterion ?? null,
         }
       : null,
     center: s.center ?? null,
@@ -447,4 +452,42 @@ export async function fetchZoneEvac(
     if (e instanceof DOMException && e.name === 'AbortError') throw e;
     return null;
   }
+}
+
+/** 존별 인구·이동 요약 (세션 공통). 없으면 null */
+export async function fetchZonePopulation(sessionId: string, signal?: AbortSignal): Promise<ZonePopulation | null> {
+  try {
+    const res = await rawFetch(`/session/${sessionId}/population`, { signal });
+    return (await res.json()) as ZonePopulation;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') throw e;
+    return null;
+  }
+}
+
+/** 클릭한 존의 대피 경로 링크망 (온디맨드). 없으면 features 빈 배열 */
+export async function fetchZonePath(
+  sessionId: string,
+  zone: string,
+  dz?: number,
+  signal?: AbortSignal,
+): Promise<ZonePaths> {
+  const qs = dz != null ? `?dz=${dz}` : '';
+  const res = await rawFetch(`/session/${sessionId}/zone-path/${encodeURIComponent(zone)}${qs}`, { signal });
+  return (await res.json()) as ZonePaths;
+}
+
+/** 선택 가능한 출발지 행정동 GeoJSON (반경 무관) */
+export async function fetchOriginZones(
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<import('geojson').FeatureCollection> {
+  const res = await rawFetch(`/session/${sessionId}/path/origin-zones`, { signal });
+  return (await res.json()) as import('geojson').FeatureCollection;
+}
+
+/** 출발지의 도착지 목록 */
+export async function fetchPathDests(sessionId: string, zone: string, signal?: AbortSignal): Promise<PathDest[]> {
+  const res = await rawFetch(`/session/${sessionId}/path/dests/${encodeURIComponent(zone)}`, { signal });
+  return ((await res.json()) as { dests: PathDest[] }).dests;
 }

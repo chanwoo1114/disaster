@@ -59,6 +59,21 @@ def parse_scenario_args(session_dir: Path, scenario_name: str) -> Optional[dict]
             except ValueError:
                 pass
 
+    # 대피기준: Evacuation_{n}.arg 의 "대피기준" (1=위험지역 탈출, 2=구호소 도착)
+    evac = next((p for p in session_dir.rglob(f"Evacuation_{int(m.group(1))}.arg")), None)
+    if evac is None:
+        evac = next((p for p in session_dir.rglob("Evacuation_*.arg")), None)
+    if evac is not None:
+        try:
+            for line in evac.read_text(encoding="cp949", errors="replace").splitlines():
+                if line.startswith("대피기준"):
+                    toks = line.partition(":")[2].split()
+                    if toks:
+                        result["evac_criterion"] = int(toks[0])
+                    break
+        except (OSError, ValueError):
+            pass
+
     return result or None
 
 

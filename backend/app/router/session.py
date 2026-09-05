@@ -1,7 +1,8 @@
 import asyncio
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Path
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from ..dependencies import get_chunk_service, get_session_service, get_zip_service
 from ..schemas.common import ApiResponse
@@ -14,7 +15,7 @@ from ..schemas.session import (
     SessionInfo,
     SessionListApiResponse,
 )
-from ..services import link_traffic, shelter, shelter_status, vehicle_positions, zone_evac
+from ..services import link_traffic, shelter, shelter_status, vehicle_positions, zone_evac, zone_population
 from ..services.chunk_upload import ChunkUploadService
 from ..services.session import SessionService
 from ..services.zip_file import ZipFileService
@@ -130,3 +131,63 @@ async def get_scenario_file(
         raise AppException(404, "산출물이 없습니다. 시나리오 준비(prepare)를 먼저 호출하세요")
 
     return FileResponse(path, media_type=media_type, headers={"Cache-Control": "private, no-cache"})
+
+
+@router.get("/{session_id}/population", summary="존별 인구·이동 요약", response_class=FileResponse)
+async def get_zone_population(
+    session_id: str = Path(..., description="세션 ID"),
+    sessions: SessionService = Depends(get_session_service),
+):
+    """세션 공통(InputData) 존별 인구 요약 zone-population.json"""
+    sessions.get(session_id)  # 존재/만료 검사
+    path = sessions.session_dir(session_id) / zone_population.POP_FILE
+    if not path.exists():
+        raise AppException(404, "인구 요약이 없습니다. 시나리오 준비(prepare)를 먼저 호출하세요")
+    return FileResponse(path, media_type="application/json", headers={"Cache-Control": "private, no-cache"})
+
+
+@router.get("/{session_id}/path/origins", summary="선택 가능한 출발지 존 목록")
+async def get_path_origins(
+    session_id: str = Path(..., description="세션 ID"),
+    sessions: SessionService = Depends(get_session_service),
+):
+    sessions.get(session_id)
+    return JSONResponse(content={"origins": sessions.path_origins(session_id)})
+
+
+@router.get("/{session_id}/path/origin-zones", summary="선택 가능한 출발지 행정동 GeoJSON")
+async def get_path_origin_zones(
+    session_id: str = Path(..., description="세션 ID"),
+    sessions: SessionService = Depends(get_session_service),
+):
+    sessions.get(session_id)
+    data = await asyncio.to_thread(sessions.path_origin_zones, session_id)
+    return JSONResponse(content=data, headers={"Cache-Control": "private, max-age=600"})
+
+
+@router.get("/{session_id}/path/dests/{zone}", summary="출발지의 도착지 목록")
+async def get_path_dests(
+    session_id: str = Path(..., description="세션 ID"),
+    zone: str = Path(..., description="출발지 존 코드"),
+    sessions: SessionService = Depends(get_session_service),
+):
+    if not zone.isdigit():
+        raise AppException(400, "유효하지 않은 존 코드입니다")
+    sessions.get(session_id)
+    dests = await asyncio.to_thread(sessions.path_dests, session_id, zone)
+    return JSONResponse(content={"dests": dests})
+
+
+@router.get("/{session_id}/zone-path/{zone}", summary="존 대피 경로 GeoJSON")
+async def get_zone_path(
+    session_id: str = Path(..., description="세션 ID"),
+    zone: str = Path(..., description="출발지 존 코드"),
+    dz: Optional[int] = None,
+    sessions: SessionService = Depends(get_session_service),
+):
+    """출발지[→도착지 dz] 대피 경로 링크망 (온디맨드)"""
+    if not zone.isdigit():
+        raise AppException(400, "유효하지 않은 존 코드입니다")
+    sessions.get(session_id)
+    data = await asyncio.to_thread(sessions.zone_paths, session_id, zone, dz)
+    return JSONResponse(content=data, headers={"Cache-Control": "private, max-age=600"})

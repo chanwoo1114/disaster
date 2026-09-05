@@ -1,7 +1,7 @@
 import { Bus, Landmark, Route, X } from 'lucide-react';
 import { TRAFFIC_COLORS, roadGroup, trafficClassOf } from './linkTraffic';
 import { formatClock } from '../playback/Timeline';
-import type { VehicleAuxInfo } from '../types';
+import type { VehicleAuxInfo, ZonePopEntry } from '../types';
 
 const RANK_LABELS: Record<string, string> = {
   '101': '고속도로',
@@ -55,6 +55,8 @@ export interface AdmCardData {
   timeSec: number;
   /** 특수시설이면 시설 구분(예: 학교), 행정동이면 null */
   facility?: string | null;
+  /** 인구·이동 요약 (person/house/activity) */
+  pop?: ZonePopEntry | null;
   /** EvacuationRateByZone 에 이 행정동의 결과가 있는지 */
   hasData: boolean;
   area: string | null;
@@ -68,6 +70,13 @@ export interface AdmCardData {
   permByArea: Record<'PAZ' | 'UPZW' | 'UPZ', number> | null;
   tempByArea: Record<'PAZ' | 'UPZW' | 'UPZ', number> | null;
 }
+
+const MODE_COLORS: Record<string, string> = {
+  도보: '#10b981',
+  승용차: '#3b82f6',
+  버스: '#f59e0b',
+  기타: '#9ca3af',
+};
 
 const AREA_SHORT: [key: 'PAZ' | 'UPZW' | 'UPZ', label: string][] = [
   ['PAZ', 'PAZ'],
@@ -248,6 +257,61 @@ export default function SelectionCard({ data, onClose }: { data: SelectionCardDa
           <p className="-mt-1 mb-1.5 font-mono text-[11px] text-gray-400">{data.code}</p>
           <Row label="시각" value={formatClock(data.timeSec)} />
           {data.facility && <Row label="구분" value={`특수시설 (${data.facility})`} />}
+
+          {/* 인구·이동 요약 (person/house/activity) */}
+          {data.pop && data.pop.pop > 0 && (
+            <div className="mt-1 border-t border-gray-100 pt-1.5">
+              <p className="mb-0.5 text-[11px] font-medium text-gray-600">인구·이동</p>
+              <Row label="인구" value={`${data.pop.pop.toLocaleString()}명 / ${data.pop.house.toLocaleString()}가구`} />
+              <Row
+                label="교통약자"
+                value={`${data.pop.vulnerable.toLocaleString()}명 (${((data.pop.vulnerable / data.pop.pop) * 100).toFixed(0)}%)`}
+              />
+              {data.pop.house > 0 && (
+                <Row
+                  label="차량 보유"
+                  value={`${data.pop.carHouse.toLocaleString()}가구 (${((data.pop.carHouse / data.pop.house) * 100).toFixed(0)}%)`}
+                />
+              )}
+              {(() => {
+                const modes = Object.entries(data.pop.mode);
+                const total = modes.reduce((s, [, v]) => s + v, 0);
+                if (total === 0) return null;
+                return (
+                  <div className="mt-0.5">
+                    <p className="mb-0.5 text-[10px] text-gray-400">대피 통행수단</p>
+                    <div className="flex h-2 w-full overflow-hidden rounded-full">
+                      {modes
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([label, v]) => (
+                          <span
+                            key={label}
+                            title={`${label} ${((v / total) * 100).toFixed(0)}%`}
+                            style={{
+                              width: `${(v / total) * 100}%`,
+                              backgroundColor: MODE_COLORS[label] ?? '#9ca3af',
+                            }}
+                          />
+                        ))}
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-gray-500">
+                      {modes
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([label, v]) => (
+                          <span key={label} className="inline-flex items-center gap-1">
+                            <span
+                              className="inline-block h-1.5 w-1.5 rounded-full"
+                              style={{ backgroundColor: MODE_COLORS[label] ?? '#9ca3af' }}
+                            />
+                            {label} {((v / total) * 100).toFixed(0)}%
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
           {!data.hasData ? (
             <p className="rounded bg-gray-50 px-2 py-1.5 text-[11px] text-gray-500">
               이 행정동의 시뮬레이션 결과(존별 대피율)가 없습니다

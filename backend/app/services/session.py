@@ -5,11 +5,21 @@ import shutil
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional
 
 from .. import config
 from ..schemas.exceptions import AppException
 from ..validators import zip_file_validator
-from . import link_traffic, scenario_meta, shelter, shelter_status, vehicle_positions, zone_evac
+from . import (
+    link_traffic,
+    scenario_meta,
+    shelter,
+    shelter_status,
+    vehicle_positions,
+    zone_evac,
+    zone_paths,
+    zone_population,
+)
 from .chunk_upload import ChunkUploadService
 from .zip_file import ZipFileService
 
@@ -174,6 +184,8 @@ class SessionService:
         shelter_status.build_or_load(scen_dir)
         # 행정동(존)별 대피율 — 행정동 클릭 카드에서 사용
         zone_evac.build_or_load(scen_dir, self.session_dir(session_id))
+        # 존별 인구·이동 요약 (세션 공통 InputData) — 존 클릭 카드에서 사용
+        zone_population.build_or_load(self.session_dir(session_id))
 
         logger.info("시나리오 준비 %s/%s", session_id, name)
         return {
@@ -181,6 +193,23 @@ class SessionService:
             "vehicle_positions": vehicle_summary,
             "shelters": shelter_summary,
         }
+
+    def zone_paths(self, session_id: str, zone: str, dz: Optional[int] = None) -> dict:
+        """존(출발지)[→도착지]의 대피 경로 GeoJSON (온디맨드)"""
+        sdir = self.session_dir(session_id)
+        result = zone_paths.build_zone_paths(sdir, zone, dz)
+        if result is None:
+            return {"type": "FeatureCollection", "features": []}
+        return result
+
+    def path_origins(self, session_id: str) -> list:
+        return zone_paths.list_origins(self.session_dir(session_id))
+
+    def path_origin_zones(self, session_id: str) -> dict:
+        return zone_paths.origin_zones_geojson(self.session_dir(session_id))
+
+    def path_dests(self, session_id: str, zone: str) -> list:
+        return zone_paths.list_dests(self.session_dir(session_id), zone) or []
 
     # ── 조회 / 삭제 ─────────────────────────────────────────────────────
 

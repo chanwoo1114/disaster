@@ -29,6 +29,7 @@
 | `showShelters` | 대피소 | `false` | ✅ (2026-09-01 수정 — `useState` + `resetScenarioData` 양쪽) |
 | `showZoneEvac` | 행정동 대피율 코로플레스 | `false` | ✅ (2026-09-02 추가. 행정동 클릭 카드는 토글과 무관하게 항상 동작) |
 | `showEtcFacilities` | 특수시설(학교 등) 대피율 점 | `false` | ✅ (2026-09-03 추가. 행정동 대피율과 독립 토글) |
+| `showZonePath` | 대피 경로(행정동/시설 클릭 시 링크망) | `false` | ✅ (2026-09-04 추가. 켜면 행정동 클릭이 링크보다 우선) |
 | (없음) | 행정동 경계 | 항상 표시 | — 토글 없는 필수 배경 레이어 (아래 예외 참조) |
 
 토글 상태는 `App.tsx`에 모아 두고 `SetupPanel`로 `show*` / `onToggle*` 쌍을 내려보낸다.

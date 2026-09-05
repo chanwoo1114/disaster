@@ -23,6 +23,8 @@ function scenarioDetail(s: ScenarioMeta): string {
   const wind = windDirectionLabel(s.args.windDirection);
   if (wind) parts.push(`풍향 ${wind}`);
   if (s.args.windSpeed != null) parts.push(`풍속 ${s.args.windSpeed}`);
+  if (s.args.evacCriterion === 1) parts.push('기준: 위험지역 탈출');
+  else if (s.args.evacCriterion === 2) parts.push('기준: 구호소 도착');
   return parts.join(' · ');
 }
 
@@ -61,6 +63,8 @@ interface Props {
   /** 특수시설 요약 문구. null이면 데이터 없음 */
   etcDetail: string | null;
   onToggleEtcFacilities: () => void;
+  showZonePath: boolean;
+  onToggleZonePath: () => void;
   onStart: () => void;
   onReset: () => void;
   savedSessions: SessionInfo[];
@@ -198,6 +202,8 @@ export default function SetupPanel({
   showEtcFacilities,
   etcDetail,
   onToggleEtcFacilities,
+  showZonePath,
+  onToggleZonePath,
   onStart,
   onReset,
   savedSessions,
@@ -358,6 +364,13 @@ export default function SetupPanel({
                   available={etcDetail !== null}
                   checked={showEtcFacilities}
                   onToggle={onToggleEtcFacilities}
+                />
+                <DataToggle
+                  label="경로 분석"
+                  detail="출발지 행정동을 클릭해 경로 조회"
+                  available
+                  checked={showZonePath}
+                  onToggle={onToggleZonePath}
                 />
               </div>
             </section>

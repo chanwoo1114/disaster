@@ -90,6 +90,40 @@ export interface ScenarioArgs {
   /** 풍향 (0=무풍, 1~16 방위) */
   windDirection: number | null;
   windSpeed: number | null;
+  /** 대피기준 (1=위험지역 탈출, 2=구호소 도착) */
+  evacCriterion: number | null;
+}
+
+/** 존별 인구·이동 요약 (person/house/activity 집계) */
+export interface ZonePopEntry {
+  pop: number;
+  vulnerable: number;
+  disabled: number;
+  house: number;
+  carHouse: number;
+  /** 통행수단(도보/승용차/버스/기타) → 통행 수 */
+  mode: Record<string, number>;
+}
+
+export interface ZonePopulation {
+  zones: Record<string, ZonePopEntry>;
+}
+
+/** 존 대피 경로 링크망 (properties.count = 통행 빈도) */
+export type ZonePaths = FeatureCollection<
+  LineString | MultiLineString,
+  { link_id: number; count: number }
+> & { meta?: { linkCount: number; destCount: number; maxCount: number } };
+
+/** 선택 가능한 출발지 존 코드 목록 */
+export type PathOrigins = string[];
+
+/** 출발지의 도착지 하나 */
+export interface PathDest {
+  dz: number;
+  serials: number[];
+  types: number[];
+  linkCount: number;
 }
 
 export interface ScenarioMeta {
