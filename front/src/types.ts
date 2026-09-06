@@ -118,9 +118,14 @@ export type ZonePaths = FeatureCollection<
 /** 선택 가능한 출발지 존 코드 목록 */
 export type PathOrigins = string[];
 
+/** 도착지 종류 — DZoneID 가 세 체계로 섞여 있다 */
+export type PathDestKind = 'adm' | 'shelter' | 'node';
+
 /** 출발지의 도착지 하나 */
 export interface PathDest {
   dz: number;
+  kind: PathDestKind;
+  name: string;
   serials: number[];
   types: number[];
   linkCount: number;

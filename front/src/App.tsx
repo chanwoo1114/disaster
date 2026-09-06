@@ -9,7 +9,7 @@ import SelectionCard, { type SelectionCardData } from './map/SelectionCard';
 import SetupPanel from './setup/SetupPanel';
 import Timeline, { formatClock } from './playback/Timeline';
 import { usePlayback } from './playback/usePlayback';
-import { createSession, deleteSession, fetchAdmZones, fetchLinkTraffic, fetchOriginZones, fetchPathDests, fetchShelters, fetchShelterStatus, fetchVehicleFrames, fetchVehicleInfo, fetchZoneEvac, fetchZonePath, fetchZonePopulation, listSessions, prepareScenario } from './api/client';
+import { createSession, deleteSession, fetchAdmZones, fetchDestZones, fetchLinkTraffic, fetchOriginZones, fetchPathDests, fetchShelters, fetchShelterStatus, fetchVehicleFrames, fetchVehicleInfo, fetchZoneEvac, fetchZonePath, fetchZonePopulation, listSessions, prepareScenario } from './api/client';
 import { uploadZipInChunks } from './upload/chunkUpload';
 import {
   LINK_QUERY_LAYERS,
@@ -27,7 +27,20 @@ import {
 } from './map/vehicleLayer';
 import { ADM_RADIUS_KM, damagePolygonOf, removeEvacZones, updateEvacZones } from './map/evacZones';
 import { ADM_FILL_LAYER, clearAdmEvacRates, removeAdmZones, setAdmEvacRates, setAdmNeutral, setSelectedAdm, updateAdmZones } from './map/admZones';
-import { ORIGIN_QUERY_LAYER, addOriginZones, removeOriginZones, setSelectedOrigin } from './map/originZones';
+import {
+  ORIGIN_QUERY_LAYERS,
+  addOriginZones,
+  removeOriginZones,
+  setOriginActive,
+  setSelectedOrigin,
+} from './map/originZones';
+import {
+  DEST_QUERY_LAYERS,
+  addDestZones,
+  removeDestZones,
+  setDestActive,
+  setSelectedDest,
+} from './map/destZones';
 import PathPanel from './map/PathPanel';
 import {
   ETC_QUERY_LAYER,
@@ -102,6 +115,9 @@ export default function App() {
   const [pathDests, setPathDests] = useState<import('./types').PathDest[] | null>(null);
   const [pathDestsLoading, setPathDestsLoading] = useState(false);
   const [pathDz, setPathDz] = useState<number | null>(null);
+  const [destZones, setDestZones] = useState<import('geojson').FeatureCollection | null>(null);
+  /** 지도 클릭이 어느 슬롯으로 가는지. 출발지를 고르면 자동으로 도착지로 넘어간다 */
+  const [pathTarget, setPathTarget] = useState<'origin' | 'dest'>('origin');
   /** 지도 색칠 기준 — exit: 구역 이탈률(상주), shelter: 구호소 도착률 */
   const [zoneMetric, setZoneMetric] = useState<'exit' | 'shelter'>('exit');
   const [selection, setSelection] = useState<Selection | null>(null);
@@ -163,6 +179,8 @@ export default function App() {
   // 경로 분석 모드: 행정동 클릭 = 출발지 선택
   const pathModeRef = useRef(false);
   pathModeRef.current = showZonePath;
+  const pathTargetRef = useRef<'origin' | 'dest'>('origin');
+  pathTargetRef.current = pathTarget;
 
   const handleMapReady = useCallback((map: MLMap, overlay: MapboxOverlay) => {
     mapRef.current = map;
@@ -187,14 +205,25 @@ export default function App() {
       }
     }
 
-    // 경로 분석 모드: 출발지 행정동 레이어를 최우선으로 잡는다
-    if (map && pathModeRef.current && map.getLayer(ORIGIN_QUERY_LAYER)) {
-      const feats = map.queryRenderedFeatures([e.x, e.y] as PointLike, { layers: [ORIGIN_QUERY_LAYER] });
-      const f = feats[0];
-      if (f?.properties?.code != null) {
-        setSelection(null);
-        setPathOrigin(String(f.properties.code));
-        return;
+    // 경로 분석 모드: 활성 슬롯(출발지/도착지)에 해당하는 레이어만 잡는다
+    if (map && pathModeRef.current) {
+      const toDest = pathTargetRef.current === 'dest';
+      const layers = (toDest ? DEST_QUERY_LAYERS : ORIGIN_QUERY_LAYERS).filter((id) => map.getLayer(id));
+      if (layers.length) {
+        // 점은 작아서 정확히 누르기 어려우므로 약간의 여유를 준다
+        const bbox: [PointLike, PointLike] = [
+          [e.x - 6, e.y - 6],
+          [e.x + 6, e.y + 6],
+        ];
+        const feats = map.queryRenderedFeatures(bbox, { layers });
+        // 점이 면 위에 있으므로 점을 우선 선택
+        const f = feats.find((ft) => ft.properties?.kind !== 'adm') ?? feats[0];
+        if (f?.properties?.code != null) {
+          setSelection(null);
+          if (toDest) setPathDz(Number(f.properties.code));
+          else setPathOrigin(String(f.properties.code));
+          return;
+        }
       }
     }
 
@@ -550,23 +579,55 @@ export default function App() {
     const map = mapRef.current;
     if (!map || !mapReady || !showZonePath || !originZones) return;
     setSelectedOrigin(map, pathOrigin);
-  }, [pathOrigin, showZonePath, originZones, mapReady, styleVersion]);
+    setOriginActive(map, pathTarget === 'origin');
+  }, [pathOrigin, pathTarget, showZonePath, originZones, mapReady, styleVersion]);
 
   // 출발지 선택 → 도착지 목록 로드
   useEffect(() => {
     if (!session || !pathOrigin) {
       setPathDests(null);
+      setDestZones(null);
+      setPathTarget('origin');
       return;
     }
     const controller = new AbortController();
     setPathDestsLoading(true);
     setPathDz(null);
+    // 출발지가 정해지면 다음에 할 일은 도착지 선택뿐이라 슬롯을 자동으로 넘긴다
+    setPathTarget('dest');
     fetchPathDests(session.sessionId, pathOrigin, controller.signal)
       .then(setPathDests)
       .catch(() => setPathDests([]))
       .finally(() => setPathDestsLoading(false));
+    fetchDestZones(session.sessionId, pathOrigin, controller.signal)
+      .then(setDestZones)
+      .catch(() => setDestZones(null));
     return () => controller.abort();
   }, [session, pathOrigin]);
+
+  // 도착지 레이어 표출 + 선택 강조
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    if (!showZonePath || !destZones) {
+      removeDestZones(map);
+      return;
+    }
+    addDestZones(map, destZones);
+    setDestActive(map, pathTarget === 'dest');
+    setSelectedDest(map, pathDz == null ? null : String(pathDz));
+    return () => {
+      if (map.getStyle()) removeDestZones(map);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showZonePath, destZones, mapReady, styleVersion]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !showZonePath || !destZones) return;
+    setSelectedDest(map, pathDz == null ? null : String(pathDz));
+    setDestActive(map, pathTarget === 'dest');
+  }, [pathDz, pathTarget, showZonePath, destZones, mapReady, styleVersion]);
 
   // 출발지+도착지 → 그 O-D 경로 링크망 표출 (도착지까지 선택해야 표시)
   useEffect(() => {
@@ -634,8 +695,14 @@ export default function App() {
   const originOptions = useMemo(() => {
     if (!originZones) return [];
     return originZones.features
-      .map((f) => ({ code: String(f.properties?.code), name: String(f.properties?.name ?? '') }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+      .map((f) => ({
+        code: String(f.properties?.code),
+        name: String(f.properties?.name ?? ''),
+        kind: f.properties?.kind === 'facility' ? ('facility' as const) : ('adm' as const),
+        facilityType: String(f.properties?.facilityType ?? ''),
+      }))
+      // 행정동 먼저, 그 안에서 이름순
+      .sort((a, b) => (a.kind === b.kind ? a.name.localeCompare(b.name, 'ko') : a.kind === 'adm' ? -1 : 1));
   }, [originZones]);
 
   useEffect(() => {
@@ -973,6 +1040,8 @@ export default function App() {
               setPathOrigin(null);
               setPathDests(null);
               setPathDz(null);
+              setDestZones(null);
+              setPathTarget('origin');
             }
             return !v;
           })
@@ -984,18 +1053,8 @@ export default function App() {
         onDeleteSession={handleDeleteSession}
       />
 
-      <div className="absolute right-4 top-4 flex flex-col items-end gap-2">
+      <div className="pointer-events-none absolute bottom-32 right-4 top-4 flex flex-col items-end gap-2 overflow-y-auto [&>*]:pointer-events-auto [&>*]:shrink-0">
         <BasemapSwitcher value={basemap} onChange={setBasemap} />
-        <Legend
-          showTraffic={!!traffic && showTraffic}
-          showShelters={!!shelters && showShelters}
-          showAdm={!!admZones}
-          showEvacRate={!!admZones && !!zoneEvac && showZoneEvac}
-          evacMetricLabel={zoneMetric === 'shelter' ? '구호소 도착률' : '구역 이탈률'}
-          showEtc={!!etcGeo && showEtcFacilities}
-          showZonePath={showZonePath}
-        />
-        {cardData && <SelectionCard data={cardData} onClose={() => setSelection(null)} />}
         {showZonePath && (
           <PathPanel
             origins={originOptions}
@@ -1005,8 +1064,20 @@ export default function App() {
             loading={pathDestsLoading}
             selectedDz={pathDz}
             onSelectDest={setPathDz}
+            target={pathTarget}
+            onTarget={setPathTarget}
           />
         )}
+        {cardData && <SelectionCard data={cardData} onClose={() => setSelection(null)} />}
+        <Legend
+          showTraffic={!!traffic && showTraffic}
+          showShelters={!!shelters && showShelters}
+          showAdm={!!admZones}
+          showEvacRate={!!admZones && !!zoneEvac && showZoneEvac}
+          evacMetricLabel={zoneMetric === 'shelter' ? '구호소 도착률' : '구역 이탈률'}
+          showEtc={!!etcGeo && showEtcFacilities}
+          showZonePath={showZonePath}
+        />
       </div>
 
       {pickMode && (

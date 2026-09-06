@@ -21,6 +21,8 @@ backend/app/data/
 
 # 시뮬레이션 데이터 (대용량)
 *.zip
+# 압축을 푼 결과 폴더 (1.6GB) — tt.zip 만 LFS로 관리한다
+/tt/
 
 # tt.zip은 예외적으로 포함 (Git LFS)
 !tt.zip

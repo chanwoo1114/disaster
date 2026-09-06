@@ -155,6 +155,17 @@ async def get_path_origins(
     return JSONResponse(content={"origins": sessions.path_origins(session_id)})
 
 
+@router.get("/{session_id}/path/dest-zones/{zone}", summary="출발지의 도착지 GeoJSON")
+async def get_path_dest_zones(
+    session_id: str = Path(..., description="세션 ID"),
+    zone: str = Path(..., description="출발지 존 코드"),
+    sessions: SessionService = Depends(get_session_service),
+):
+    sessions.get(session_id)
+    data = await asyncio.to_thread(sessions.path_dest_zones, session_id, zone)
+    return JSONResponse(content=data, headers={"Cache-Control": "private, no-cache"})
+
+
 @router.get("/{session_id}/path/origin-zones", summary="선택 가능한 출발지 행정동 GeoJSON")
 async def get_path_origin_zones(
     session_id: str = Path(..., description="세션 ID"),
@@ -162,7 +173,7 @@ async def get_path_origin_zones(
 ):
     sessions.get(session_id)
     data = await asyncio.to_thread(sessions.path_origin_zones, session_id)
-    return JSONResponse(content=data, headers={"Cache-Control": "private, max-age=600"})
+    return JSONResponse(content=data, headers={"Cache-Control": "private, no-cache"})
 
 
 @router.get("/{session_id}/path/dests/{zone}", summary="출발지의 도착지 목록")
@@ -190,4 +201,4 @@ async def get_zone_path(
         raise AppException(400, "유효하지 않은 존 코드입니다")
     sessions.get(session_id)
     data = await asyncio.to_thread(sessions.zone_paths, session_id, zone, dz)
-    return JSONResponse(content=data, headers={"Cache-Control": "private, max-age=600"})
+    return JSONResponse(content=data, headers={"Cache-Control": "private, no-cache"})

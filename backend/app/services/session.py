@@ -211,6 +211,9 @@ class SessionService:
     def path_dests(self, session_id: str, zone: str) -> list:
         return zone_paths.list_dests(self.session_dir(session_id), zone) or []
 
+    def path_dest_zones(self, session_id: str, zone: str) -> dict:
+        return zone_paths.dest_zones_geojson(self.session_dir(session_id), zone)
+
     # ── 조회 / 삭제 ─────────────────────────────────────────────────────
 
     def get(self, session_id: str) -> dict:

@@ -486,6 +486,16 @@ export async function fetchOriginZones(
   return (await res.json()) as import('geojson').FeatureCollection;
 }
 
+/** 출발지의 도착지 GeoJSON (행정동 폴리곤 + 대피소/노드 점) */
+export async function fetchDestZones(
+  sessionId: string,
+  zone: string,
+  signal?: AbortSignal,
+): Promise<import('geojson').FeatureCollection> {
+  const res = await rawFetch(`/session/${sessionId}/path/dest-zones/${encodeURIComponent(zone)}`, { signal });
+  return (await res.json()) as import('geojson').FeatureCollection;
+}
+
 /** 출발지의 도착지 목록 */
 export async function fetchPathDests(sessionId: string, zone: string, signal?: AbortSignal): Promise<PathDest[]> {
   const res = await rawFetch(`/session/${sessionId}/path/dests/${encodeURIComponent(zone)}`, { signal });
