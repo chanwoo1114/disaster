@@ -2,8 +2,8 @@
 .env
 .venv/
 
-# IDE
-.idea/
+# IDE — 공유 가능한 설정만 포함. 개인 상태(workspace.xml 등)는
+# JetBrains 가 만든 .idea/.gitignore 가 걸러낸다
 
 # Python
 __pycache__/
