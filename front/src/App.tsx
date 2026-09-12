@@ -889,13 +889,9 @@ export default function App() {
     cardData = {
       kind: 'vehicle',
       vehId: selection.vehId,
-      timeSec,
       aux: vehInfo[String(selection.vehId)] ?? null,
       present: row >= 0,
       occupancy: row >= 0 ? vehicles.occupancy[row] : null,
-      direction: row >= 0 ? vehicles.directions[row] : null,
-      lng: row >= 0 ? vehicles.positions[row * 2] : null,
-      lat: row >= 0 ? vehicles.positions[row * 2 + 1] : null,
     };
   } else if (selection?.kind === 'link' && traffic) {
     const props = linkPropsMap.get(selection.linkId);

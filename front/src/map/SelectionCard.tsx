@@ -1,7 +1,7 @@
 import { Bus, Landmark, Route, X } from 'lucide-react';
 import { TRAFFIC_COLORS, roadGroup, trafficClassOf } from './linkTraffic';
 import { formatClock } from '../playback/Timeline';
-import type { VehicleAuxInfo, ZonePopEntry } from '../types';
+import type { VehicleAuxInfo, ZonePopEntry, ZoneRef } from '../types';
 
 const RANK_LABELS: Record<string, string> = {
   '101': '고속도로',
@@ -23,13 +23,11 @@ const AREA_LABELS: Record<string, string> = {
 export interface VehicleCardData {
   kind: 'vehicle';
   vehId: number;
-  timeSec: number;
+  /** 현재 시각 프레임에 이 차량이 있는지 */
   present: boolean;
+  /** 현재 프레임의 탑승 인원 — 프레임에 없으면 null, aux.occ 로 대체한다 */
   occupancy: number | null;
-  direction: number | null;
-  lng: number | null;
-  lat: number | null;
-  /** PermanentHouseAuto / BusOccupancy 연계 정보 */
+  /** 출발지·도착지·승차인원 등 시각과 무관한 연계 정보 */
   aux: VehicleAuxInfo | null;
 }
 
@@ -142,6 +140,44 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** 존 종류 — 시설은 원본이 알려주는 학교/병원/요양원을 그대로 쓴다 */
+const ZONE_KIND_LABELS: Record<ZoneRef['kind'], string> = {
+  adm: '행정동',
+  shelter: '대피소',
+  facility: '시설',
+  node: '노드',
+};
+
+/** 출발지·도착지 한 줄. 시설명이 길어 카드 폭을 넘길 수 있어 줄바꿈을 허용한다 */
+function ZoneRow({ label, zone }: { label: string; zone: ZoneRef | undefined }) {
+  const kind = zone && (zone.facilityType || ZONE_KIND_LABELS[zone.kind]);
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="shrink-0 text-[11px] text-gray-500">{label}</span>
+      <span className="break-keep text-right text-xs font-medium text-gray-800">
+        {zone?.name ?? '—'}
+        {kind && <span className="ml-1 font-normal text-gray-400">({kind})</span>}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * 차량 카드 — 탑승 인원·출발지·도착지만 보여준다.
+ * 탑승 인원은 현재 프레임 값을 쓰되, 시간을 옮겨 차량이 사라져도 비지 않도록
+ * 통행 기록(aux.occ)으로 대체한다. 셋 다 시각과 무관하게 읽히는 값이다.
+ */
+function VehicleBody({ data }: { data: VehicleCardData }) {
+  const occ = data.present ? data.occupancy : (data.aux?.occ ?? null);
+  return (
+    <div className="space-y-1">
+      <Row label="탑승 인원" value={occ !== null ? `${occ}명` : '—'} />
+      <ZoneRow label="출발지" zone={data.aux?.o} />
+      <ZoneRow label="도착지" zone={data.aux?.d} />
+    </div>
+  );
+}
+
 function Header({ data }: { data: SelectionCardData }) {
   if (data.kind === 'vehicle') {
     return (
@@ -176,43 +212,7 @@ export default function SelectionCard({ data, onClose }: { data: SelectionCardDa
         </button>
       </div>
 
-      {data.kind === 'vehicle' && (
-        <div className="space-y-1">
-          <Row label="시각" value={formatClock(data.timeSec)} />
-          {data.present ? (
-            <>
-              <Row label="탑승 인원" value={`${data.occupancy}명`} />
-              <Row label="진행 방향" value={`${data.direction?.toFixed(1)}°`} />
-              <Row label="좌표" value={`${data.lng?.toFixed(5)}, ${data.lat?.toFixed(5)}`} />
-            </>
-          ) : (
-            <p className="rounded bg-gray-50 px-2 py-1.5 text-[11px] text-gray-500">
-              현재 시각에는 이 차량이 없습니다 (시간을 이동해 보세요)
-            </p>
-          )}
-
-          {data.aux && (data.aux.start !== undefined || data.aux.bus) && (
-            <div className="mt-1 space-y-1 border-t border-gray-100 pt-1.5">
-              {data.aux.start !== undefined && (
-                <Row label="출발 시각" value={formatClock(data.aux.start)} />
-              )}
-              {data.aux.house !== undefined && <Row label="가구 ID" value={String(data.aux.house)} />}
-              {data.aux.bus && (
-                <>
-                  <Row
-                    label="버스 승차"
-                    value={`${data.aux.bus.n.toLocaleString()}회 · ${data.aux.bus.pax.toLocaleString()}명`}
-                  />
-                  <Row
-                    label="승차 시간대"
-                    value={`${formatClock(data.aux.bus.first)}–${formatClock(data.aux.bus.last)}`}
-                  />
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+      {data.kind === 'vehicle' && <VehicleBody data={data} />}
 
       {data.kind === 'link' && (
         <div className="space-y-1">

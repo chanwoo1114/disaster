@@ -176,7 +176,9 @@ class SessionService:
         if vehicle_positions.has_outputs(scen_dir):
             vehicle_summary = vehicle_positions.summary_from_meta(scen_dir)
         else:
-            vehicle_summary = vehicle_positions.build(scen_dir)
+            vehicle_summary = vehicle_positions.build(
+                scen_dir, self.session_dir(session_id)
+            )
 
         # 대피소는 시나리오 폴더가 아니라 세션 전체(InputData/Shelter)에서 찾는다
         shelter_summary = shelter.build_or_load(self.session_dir(session_id), scen_dir)

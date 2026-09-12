@@ -182,7 +182,17 @@ export interface LinkProps {
   has_data: boolean;
 }
 
-/** 차량 연계 정보 (PermanentHouseAuto / PermanentPersonAuto / BusOccupancy) */
+/** 출발지·도착지 존 — 코드 체계가 섞여 있어 서버가 이름까지 붙여 내려준다 */
+export interface ZoneRef {
+  code: string;
+  /** 표출용 이름. 원본에 이름이 없으면 `행정동 37020360` 처럼 코드가 섞인 문구 */
+  name: string;
+  kind: 'adm' | 'shelter' | 'facility' | 'node';
+  /** 특수시설일 때만: 학교 / 병원 / 요양원 */
+  facilityType?: string;
+}
+
+/** 차량 연계 정보 (PermanentHouseAuto / PermanentPersonAuto / BusOccupancy / VehicleTravelInfomation) */
 export interface VehicleAuxInfo {
   /** 출발 시각(초) */
   start?: number;
@@ -190,6 +200,12 @@ export interface VehicleAuxInfo {
   person?: number;
   /** 버스 승차 기록 요약 */
   bus?: { n: number; pax: number; first: number; last: number };
+  /** 출발지 */
+  o?: ZoneRef;
+  /** 도착지 */
+  d?: ZoneRef;
+  /** 통행 기준 승차인원 — 시각과 무관해 프레임에 차량이 없을 때도 쓴다 */
+  occ?: number;
 }
 
 export type VehicleInfoMap = Record<string, VehicleAuxInfo>;
