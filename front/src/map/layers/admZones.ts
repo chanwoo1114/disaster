@@ -28,11 +28,11 @@ export const ADM_COLORS = {
   selected: '#2563eb',
 };
 
-/** 존별 대피율(상주 %) 코로플레스 색 — 0% 흰색 → 100% 진파랑 */
+/** 존별 대피율(상주 %) 코로플레스 색 — 0% 빨강 → 50% 노랑 → 100% 초록 (대피소 마커와 같은 척도) */
 export const ADM_EVAC_COLORS = {
-  low: '#eff6ff',
-  mid: '#60a5fa',
-  high: '#1e40af',
+  low: '#ef4444',
+  mid: '#f59e0b',
+  high: '#059669',
 };
 
 export function updateAdmZones(map: MLMap, data: FeatureCollection): void {

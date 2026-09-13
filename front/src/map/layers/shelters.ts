@@ -6,7 +6,7 @@ import type {
   Map as MLMap,
 } from 'maplibre-gl';
 import { Popup } from 'maplibre-gl';
-import type { ShelterCollection, ShelterProps, ShelterRate } from '../types';
+import type { ShelterCollection, ShelterProps, ShelterRate } from '../../types';
 
 /**
  * 대피소 표출 — 대피율(현재 시점)에 따라 색이 바뀌는 원형 마커.
@@ -17,6 +17,8 @@ const SOURCE = 'shelters';
 const CIRCLE = 'shelters-circle';
 
 let popup: Popup | null = null;
+// 열려 있는 팝업의 대피소 (시점이 바뀌면 내용을 다시 그린다)
+let popupProps: ShelterProps | null = null;
 let clickHandler: ((e: MapLayerMouseEvent) => void) | null = null;
 let enterHandler: (() => void) | null = null;
 let leaveHandler: (() => void) | null = null;
@@ -54,7 +56,6 @@ function popupHtml(p: ShelterProps): string {
     <div style="font-family:system-ui,sans-serif;min-width:150px">
       <div style="font-weight:600;font-size:13px;color:#065f46;margin-bottom:2px">${name}</div>
       ${body}
-      <div style="font-size:10px;color:#9ca3af;margin-top:3px">ID ${p.shelter_id}</div>
     </div>`;
 }
 
@@ -94,10 +95,15 @@ export function addShelterLayers(map: MLMap, data: ShelterCollection): void {
     if (!f) return;
     const p = f.properties as unknown as ShelterProps;
     popup?.remove();
-    popup = new Popup({ closeButton: true, closeOnClick: true, offset: 10 })
+    popupProps = p;
+    const opened = new Popup({ closeButton: true, closeOnClick: true, offset: 10 })
       .setLngLat(e.lngLat)
       .setHTML(popupHtml(p))
       .addTo(map);
+    opened.on('close', () => {
+      if (popup === opened) popupProps = null;
+    });
+    popup = opened;
   };
   enterHandler = () => {
     map.getCanvas().style.cursor = 'pointer';
@@ -126,6 +132,7 @@ export function setShelterRates(map: MLMap, rates: Map<number, ShelterRate>): vo
     map.setFeatureState({ source: SOURCE, id }, { pct: r.pct });
     stated.add(id);
   });
+  if (popup && popupProps) popup.setHTML(popupHtml(popupProps));
 }
 
 export function setShelterLayersVisible(map: MLMap, visible: boolean): void {
@@ -138,6 +145,7 @@ export function setShelterLayersVisible(map: MLMap, visible: boolean): void {
 export function removeShelterLayers(map: MLMap): void {
   popup?.remove();
   popup = null;
+  popupProps = null;
   ratesById = new Map();
   stated.clear();
   if (clickHandler) map.off('click', CIRCLE, clickHandler);

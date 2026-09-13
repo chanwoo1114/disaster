@@ -1,4 +1,4 @@
-import { BASEMAP_OPTIONS, type Basemap } from './vworldStyle';
+import { BASEMAP_OPTIONS, type Basemap } from '../vworldStyle';
 
 interface Props {
   value: Basemap;

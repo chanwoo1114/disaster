@@ -1,7 +1,7 @@
 import { Bus, Landmark, Route, X } from 'lucide-react';
-import { TRAFFIC_COLORS, roadGroup, trafficClassOf } from './linkTraffic';
-import { formatClock } from '../playback/Timeline';
-import type { VehicleAuxInfo, ZonePopEntry, ZoneRef } from '../types';
+import { TRAFFIC_COLORS, roadGroup, trafficClassOf } from '../layers/linkTraffic';
+import { formatClock } from '../../playback/Timeline';
+import type { VehicleAuxInfo, ZonePopEntry, ZoneRef } from '../../types';
 
 const RANK_LABELS: Record<string, string> = {
   '101': '고속도로',
@@ -202,7 +202,7 @@ function Header({ data }: { data: SelectionCardData }) {
 
 export default function SelectionCard({ data, onClose }: { data: SelectionCardData; onClose: () => void }) {
   return (
-    <div className="w-[230px] rounded-lg border border-gray-200 bg-white/95 px-3 py-2.5 shadow-lg backdrop-blur">
+    <div className="w-[248px] rounded-lg border border-gray-200 bg-white/95 px-3 py-2.5 shadow-lg backdrop-blur">
       <div className="mb-2 flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-900">
           <Header data={data} />

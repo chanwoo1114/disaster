@@ -1,5 +1,5 @@
 import type { DataDrivenPropertyValueSpecification, Map as MLMap } from 'maplibre-gl';
-import type { LinkTraffic } from '../types';
+import type { LinkTraffic } from '../../types';
 
 export const LINK_SOURCE = 'links';
 const LINE_LAYER = 'links-line';
@@ -174,11 +174,28 @@ export function setSelectedLink(map: MLMap, linkId: number | null): void {
   map.setFilter(SELECTED_LAYER, ['==', ['get', 'link_id'], linkId ?? -1]);
 }
 
-export function setLinkLayersVisible(map: MLMap, visible: boolean): void {
+/**
+ * visible: 소통 색으로 표시.
+ * plain: 소통정보는 끄되 도로망만 가는 검은 선으로 남긴다 (차량 이동 표출용, casing·선택 강조 숨김)
+ */
+export function setLinkLayersVisible(map: MLMap, visible: boolean, plain = false): void {
   const v = visible ? 'visible' : 'none';
-  for (const id of [LINE_LAYER, CASING_LAYER, SELECTED_LAYER]) {
+  for (const id of [CASING_LAYER, SELECTED_LAYER]) {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', v);
   }
+  if (!map.getLayer(LINE_LAYER)) return;
+  map.setLayoutProperty(LINE_LAYER, 'visibility', visible || plain ? 'visible' : 'none');
+  map.setPaintProperty(LINE_LAYER, 'line-color', visible ? colorExpression() : '#000000');
+  map.setPaintProperty(
+    LINE_LAYER,
+    'line-width',
+    visible ? widthExpression() : ['interpolate', ['exponential', 1.5], ['zoom'], 8, 0.5, 12, 1, 15, 2, 18, 3],
+  );
+  map.setPaintProperty(
+    LINE_LAYER,
+    'line-opacity',
+    visible ? ['case', ['boolean', ['feature-state', 'nodata'], true], 0.75, 1] : 0.8,
+  );
 }
 
 export function removeLinkLayers(map: MLMap): void {

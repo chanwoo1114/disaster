@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 
-import { ADM_COLORS, ADM_EVAC_COLORS } from './admZones';
-import { ROAD_GROUPS, TRAFFIC_CLASSES, TRAFFIC_COLORS, rangeText } from './linkTraffic';
+import { ADM_COLORS, ADM_EVAC_COLORS } from '../layers/admZones';
+import { ROAD_GROUPS, TRAFFIC_CLASSES, TRAFFIC_COLORS, rangeText } from '../layers/linkTraffic';
 
 interface Props {
   showTraffic: boolean;
@@ -134,7 +134,7 @@ export default function Legend({
               <li className="flex items-center gap-2">
                 <span
                   className="inline-block h-3 w-3 shrink-0 rounded-full border-2"
-                  style={{ borderColor: '#1e3a8a', backgroundColor: ADM_EVAC_COLORS.mid }}
+                  style={{ borderColor: '#1f2937', backgroundColor: ADM_EVAC_COLORS.mid }}
                 />
                 <span className="text-gray-700">특수시설 (학교 등, 대피율 색)</span>
               </li>

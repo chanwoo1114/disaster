@@ -1,12 +1,12 @@
 import type { GeoJSONSource, Map as MLMap } from 'maplibre-gl';
 import type { FeatureCollection } from 'geojson';
 import { ADM_EVAC_COLORS } from './admZones';
-import type { ZoneEvac } from '../types';
+import type { ZoneEvac } from '../../types';
 
 /**
  * 특수시설(학교 등) 대피율 점 표출
  * - EvacuationRateByZone 의 8자리 미만 ZoneID = special_facility 시설
- * - 행정동 대피율 토글(showZoneEvac)과 함께 켜지고, 같은 색 척도(흰→파랑)로
+ * - 행정동 대피율 토글(showZoneEvac)과 함께 켜지고, 같은 색 척도(빨강→노랑→초록)로
  *   시간에 따라 대피율이 변한다. feature-state evacPct 사용.
  */
 
@@ -51,7 +51,7 @@ export function addEtcFacilityLayer(map: MLMap, data: FeatureCollection): void {
         50, ADM_EVAC_COLORS.mid,
         100, ADM_EVAC_COLORS.high,
       ],
-      'circle-stroke-color': '#1e3a8a',
+      'circle-stroke-color': '#1f2937',
       'circle-stroke-width': 1.5,
       'circle-opacity': 0.95,
     },

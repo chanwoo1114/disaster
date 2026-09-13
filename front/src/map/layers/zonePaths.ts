@@ -1,5 +1,5 @@
 import type { GeoJSONSource, Map as MLMap } from 'maplibre-gl';
-import type { ZonePaths } from '../types';
+import type { ZonePaths } from '../../types';
 
 /**
  * 클릭한 존의 대피 경로 링크망.

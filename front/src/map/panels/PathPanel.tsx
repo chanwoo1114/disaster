@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Loader2, Route } from 'lucide-react';
-import type { PathDest, PathDestKind } from '../types';
+import type { PathDest, PathDestKind } from '../../types';
 
 /** 도착지 탭 — DZoneID 가 행정동/대피소/노드 세 체계로 섞여 있다 */
 const KIND_LABELS: Record<PathDestKind, string> = {

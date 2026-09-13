@@ -3,9 +3,10 @@ import type { Map as MLMap, PointLike } from 'maplibre-gl';
 import type { MapboxOverlay } from '@deck.gl/mapbox';
 import { Loader2 } from 'lucide-react';
 import MapView from './map/MapView';
-import BasemapSwitcher from './map/BasemapSwitcher';
-import Legend from './map/Legend';
-import SelectionCard, { type SelectionCardData } from './map/SelectionCard';
+import BasemapSwitcher from './map/panels/BasemapSwitcher';
+import Legend from './map/panels/Legend';
+import VehicleOriginPanel from './map/panels/VehicleOriginPanel';
+import SelectionCard, { type SelectionCardData } from './map/panels/SelectionCard';
 import SetupPanel from './setup/SetupPanel';
 import Timeline, { formatClock } from './playback/Timeline';
 import { usePlayback } from './playback/usePlayback';
@@ -18,30 +19,33 @@ import {
   removeLinkLayers,
   setLinkLayersVisible,
   setSelectedLink,
-} from './map/linkTraffic';
+} from './map/layers/linkTraffic';
 import {
+  ORIGIN_COLORS,
   VEHICLE_LAYER_ID,
+  buildOriginColors,
   buildSelectionRing,
   buildVehicleLayer,
   findVehicleRow,
-} from './map/vehicleLayer';
-import { ADM_RADIUS_KM, damagePolygonOf, removeEvacZones, updateEvacZones } from './map/evacZones';
-import { ADM_FILL_LAYER, clearAdmEvacRates, removeAdmZones, setAdmEvacRates, setAdmNeutral, setSelectedAdm, updateAdmZones } from './map/admZones';
+  listOriginOptions,
+} from './map/layers/vehicleLayer';
+import { ADM_RADIUS_KM, damagePolygonOf, removeEvacZones, updateEvacZones } from './map/layers/evacZones';
+import { ADM_FILL_LAYER, clearAdmEvacRates, removeAdmZones, setAdmEvacRates, setAdmNeutral, setSelectedAdm, updateAdmZones } from './map/layers/admZones';
 import {
   ORIGIN_QUERY_LAYERS,
   addOriginZones,
   removeOriginZones,
   setOriginActive,
   setSelectedOrigin,
-} from './map/originZones';
+} from './map/layers/originZones';
 import {
   DEST_QUERY_LAYERS,
   addDestZones,
   removeDestZones,
   setDestActive,
   setSelectedDest,
-} from './map/destZones';
-import PathPanel from './map/PathPanel';
+} from './map/layers/destZones';
+import PathPanel from './map/panels/PathPanel';
 import {
   ETC_QUERY_LAYER,
   addEtcFacilityLayer,
@@ -49,9 +53,9 @@ import {
   removeEtcFacilityLayer,
   setEtcFacilityRates,
   setEtcFacilityVisible,
-} from './map/etcFacilities';
-import { addShelterLayers, removeShelterLayers, setShelterLayersVisible, setShelterRates } from './map/shelters';
-import { removeZonePaths, updateZonePaths } from './map/zonePaths';
+} from './map/layers/etcFacilities';
+import { addShelterLayers, removeShelterLayers, setShelterLayersVisible, setShelterRates } from './map/layers/shelters';
+import { removeZonePaths, updateZonePaths } from './map/layers/zonePaths';
 import { isDarkBasemap, type Basemap } from './map/vworldStyle';
 import type {
   AdmZones,
@@ -96,6 +100,9 @@ export default function App() {
   const [traffic, setTraffic] = useState<LinkTraffic | null>(null);
   const [vehicles, setVehicles] = useState<VehicleFrames | null>(null);
   const [vehInfo, setVehInfo] = useState<VehicleInfoMap>({});
+  // 색을 입힌 출발지. 인덱스 = ORIGIN_COLORS 슬롯이라 하나를 빼도 나머지 색이 밀리지 않는다
+  const [originSlots, setOriginSlots] = useState<(string | null)[]>(() => ORIGIN_COLORS.map(() => null));
+  const [hideOtherVehicles, setHideOtherVehicles] = useState(false);
   const [shelters, setShelters] = useState<ShelterCollection | null>(null);
   const [shelterStatus, setShelterStatus] = useState<ShelterStatus | null>(null);
   const [admZones, setAdmZones] = useState<AdmZones | null>(null);
@@ -266,7 +273,8 @@ export default function App() {
     if (!admPriorityRef.current && pickLink()) return;
 
     // 행정동 폴리곤 (배경 레이어라 어디를 눌러도 잡힌다)
-    if (map && map.getLayer(ADM_FILL_LAYER)) {
+    // 대피율/특수시설/경로 토글이 꺼져 있으면 행정동 대피 정보 카드를 띄우지 않는다
+    if (map && admPriorityRef.current && map.getLayer(ADM_FILL_LAYER)) {
       const feats = map.queryRenderedFeatures([e.x, e.y] as PointLike, { layers: [ADM_FILL_LAYER] });
       const f = feats[0];
       if (f?.properties?.code != null) {
@@ -291,6 +299,8 @@ export default function App() {
     setTraffic(null);
     setVehicles(null);
     setVehInfo({});
+    setOriginSlots(ORIGIN_COLORS.map(() => null));
+    setHideOtherVehicles(false);
     setShelters(null);
     setShelterStatus(null);
     setScenSummary(null);
@@ -406,8 +416,9 @@ export default function App() {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady || !traffic) return;
-    setLinkLayersVisible(map, showTraffic);
-  }, [showTraffic, traffic, mapReady, styleVersion]);
+    // 소통정보가 꺼져 있으면 차량 이동 표출 중일 때만 도로망을 검은 선으로 깐다
+    setLinkLayersVisible(map, showTraffic, showVehicles);
+  }, [showTraffic, showVehicles, traffic, mapReady, styleVersion]);
 
   // ── 대피소 포인트 레이어 (배경 교체 시 styleVersion으로 다시 얹는다) ──
   useEffect(() => {
@@ -669,7 +680,7 @@ export default function App() {
     return m;
   }, [zoneEvac, playTimes, playback.index, zoneMetric]);
 
-  // 대피율 → 행정동 색 반영 (토글 on일 때만, 재생에 따라 흰색 → 파랑으로 채워진다)
+  // 대피율 → 행정동 색 반영 (토글 on일 때만, 재생에 따라 빨강 → 노랑 → 초록으로 바뀐다)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady || !admZones) return;
@@ -746,6 +757,16 @@ export default function App() {
     painterRef.current?.apply(playback.index);
   }, [playback.index]);
 
+  const vehicleOrigins = useMemo(() => listOriginOptions(vehInfo), [vehInfo]);
+  // 행별 색은 차량·고른 출발지가 바뀔 때만 계산한다 (프레임마다 재계산하면 무겁다)
+  const originColors = useMemo(
+    () =>
+      vehicles && vehicleOrigins.length
+        ? buildOriginColors(vehicles, vehInfo, originSlots, hideOtherVehicles)
+        : undefined,
+    [vehicles, vehInfo, vehicleOrigins, originSlots, hideOtherVehicles],
+  );
+
   // ── 재생 인덱스/선택 → 차량 레이어 갱신 ───────────────────────────────
   useEffect(() => {
     const overlay = overlayRef.current;
@@ -753,7 +774,7 @@ export default function App() {
 
     const layers = [];
     if (vehicles && showVehicles && currentVehicleFrame >= 0) {
-      const iconLayer = buildVehicleLayer(vehicles, currentVehicleFrame);
+      const iconLayer = buildVehicleLayer(vehicles, currentVehicleFrame, originColors);
       if (iconLayer) layers.push(iconLayer);
       if (selection?.kind === 'vehicle') {
         const row = findVehicleRow(vehicles, currentVehicleFrame, selection.vehId);
@@ -762,7 +783,24 @@ export default function App() {
       }
     }
     overlay.setProps({ layers });
-  }, [vehicles, showVehicles, currentVehicleFrame, mapReady, selection]);
+  }, [vehicles, showVehicles, currentVehicleFrame, mapReady, selection, originColors]);
+
+  // 출발지 색 토글. 이미 색이 있으면 그 슬롯만 비우고, 없으면 빈 슬롯 앞에서부터 채운다
+  const toggleOriginColor = useCallback((code: string) => {
+    setOriginSlots((slots) => {
+      const i = slots.indexOf(code);
+      const at = i >= 0 ? i : slots.indexOf(null);
+      if (at < 0) return slots; // 슬롯이 다 찼다
+      const next = [...slots];
+      next[at] = i >= 0 ? null : code;
+      return next;
+    });
+  }, []);
+
+  const clearOriginColors = useCallback(() => {
+    setOriginSlots(ORIGIN_COLORS.map(() => null));
+    setHideOtherVehicles(false); // 다 해제하면 차량이 전부 사라지므로 같이 푼다
+  }, []);
 
   // ── 설정 핸들러 ──────────────────────────────────────────────────────
   const handleDisasterType = (t: DisasterType) => {
@@ -1062,6 +1100,16 @@ export default function App() {
             onSelectDest={setPathDz}
             target={pathTarget}
             onTarget={setPathTarget}
+          />
+        )}
+        {showVehicles && vehicleOrigins.length > 0 && (
+          <VehicleOriginPanel
+            origins={vehicleOrigins}
+            slots={originSlots}
+            onToggle={toggleOriginColor}
+            onClear={clearOriginColors}
+            hideOthers={hideOtherVehicles}
+            onToggleHideOthers={() => setHideOtherVehicles((v) => !v)}
           />
         )}
         {cardData && <SelectionCard data={cardData} onClose={() => setSelection(null)} />}
