@@ -68,21 +68,25 @@ let _active = true; // 출발지 슬롯이 지도 클릭 대상인가
  * 선택 상태·활성 슬롯을 한 번에 칠한다.
  * - 선택된 출발지는 어느 슬롯이 활성이든 진하게 유지한다 (도착지를 고르는 동안에도
  *   출발지가 어디였는지 보여야 한다).
- * - 후보는 도착지 지정 중일 때만 흐려진다.
+ * - 도착지를 고르는 동안 후보는 아예 감춘다. 출발지 후보 절반가량이 도착지 후보이기도
+ *   해서, 흐리게라도 깔아두면 청록 도착지 위로 비쳐 같은 후보끼리 색이 갈려 보인다.
  */
 function applyPaint(map: MLMap): void {
   if (!map.getLayer(FILL)) return;
   const hasSel = _selectedOrigin != null;
-  const candFill = hasSel ? (_active ? 0.22 : 0.1) : _active ? 0.55 : 0.25;
-  const candLine = hasSel ? (_active ? 0.7 : 0.35) : _active ? 0.9 : 0.4;
+  const candFill = !_active ? 0 : hasSel ? 0.22 : 0.55;
+  const candLine = !_active ? 0 : hasSel ? 0.7 : 0.9;
+  const candPoint = !_active ? 0 : candFill + 0.3;
 
   map.setPaintProperty(FILL, 'fill-color', COLOR);
   map.setPaintProperty(FILL, 'fill-opacity', ['case', SELECTED, 0.62, candFill] as never);
   map.setPaintProperty(LINE, 'line-color', ['case', SELECTED, '#7c2d12', '#ffffff'] as never);
   map.setPaintProperty(LINE, 'line-width', ['case', SELECTED, 3.5, 1.2] as never);
   map.setPaintProperty(LINE, 'line-opacity', ['case', SELECTED, 1, candLine] as never);
-  map.setPaintProperty(POINT, 'circle-opacity', ['case', SELECTED, 1, candFill + 0.3] as never);
+  map.setPaintProperty(POINT, 'circle-opacity', ['case', SELECTED, 1, candPoint] as never);
   map.setPaintProperty(POINT, 'circle-stroke-color', ['case', SELECTED, '#7c2d12', '#ffffff'] as never);
+  // 테두리 불투명도는 circle-opacity 와 별개라 같이 꺼야 점이 완전히 사라진다
+  map.setPaintProperty(POINT, 'circle-stroke-opacity', ['case', SELECTED, 1, candPoint && 1] as never);
   map.setPaintProperty(POINT, 'circle-stroke-width', ['case', SELECTED, 3, 1.6] as never);
   map.setPaintProperty(
     POINT,

@@ -154,11 +154,12 @@ def _load_shelters(session_root: Path) -> dict:
     return out
 
 
-def _resolve_dest(code: str, adm_lookup, shelters: dict) -> dict:
+def _resolve_dest(code: str, adm_lookup, shelters: dict, nodes: dict) -> dict:
     """도착지 코드 → {kind, name}.
 
-    대피소·행정동에 없으면 노드로 본다. 전수 확인상 남는 건 전부 node_id 였고,
-    node.csv(20만 행)를 조회 한 번 때문에 올리지 않으려는 의도적 선택이다.
+    대피소·행정동에 없으면 노드로 본다 (전수 확인상 남는 건 전부 node_id 였다).
+    노드 이름은 node.csv 의 node_nm — 교차로·지점 이름이라 코드보다 읽힌다.
+    이름이 비어 있는 노드만 코드로 표기한다.
     """
     if code in shelters:
         return {"kind": "shelter", "name": shelters[code]["name"] or f"대피소 {code}"}
@@ -166,11 +167,12 @@ def _resolve_dest(code: str, adm_lookup, shelters: dict) -> dict:
         row = adm_lookup.loc[code]
         name = row["name"] if "name" in adm_lookup.columns else ""
         return {"kind": "adm", "name": str(name)}
-    return {"kind": "node", "name": f"노드 {code}"}
+    node = nodes.get(code)
+    return {"kind": "node", "name": (node[2] if node and node[2] else f"노드 {code}")}
 
 
 def list_dests(session_dir: Path, zone: str) -> Optional[list[dict]]:
-    """출발지의 도착지 목록. 각 도착지의 종류(행정동/대피소/노드)·이름·경로·링크 수."""
+    """출발지의 도착지 목록. 각 도착지의 종류(행정동/대피소/노드)·이름·경로(serial)·유형."""
     from .adm_geometry import AdmGeometry
 
     path = _find_path_file(session_dir, zone)
@@ -184,6 +186,7 @@ def list_dests(session_dir: Path, zone: str) -> Optional[list[dict]]:
         return []
 
     shelters = _load_shelters(session_dir)
+    nodes = _load_nodes()
     try:
         adm = AdmGeometry.load()
         adm_lookup = adm.set_index("code") if adm.index.name != "code" else adm
@@ -196,10 +199,9 @@ def list_dests(session_dir: Path, zone: str) -> Optional[list[dict]]:
         dests.append(
             {
                 "dz": int(dz),
-                **_resolve_dest(code, adm_lookup, shelters),
+                **_resolve_dest(code, adm_lookup, shelters, nodes),
                 "serials": sorted(int(s) for s in grp["serial"].unique()),
                 "types": sorted(int(t) for t in grp["type"].unique()),
-                "linkCount": int(grp["link"].nunique()),
             }
         )
     # 종류별로 묶고 그 안에서 이름순 (프론트 탭 순서와 동일)
@@ -213,10 +215,11 @@ _node_lock = threading.Lock()
 
 
 def _load_nodes() -> dict:
-    """node.csv → {node_id: (lng, lat)}. 20만 행이라 프로세스당 1회만 만든다.
+    """node.csv → {node_id: (lng, lat, node_nm)}. 20만 행이라 프로세스당 1회만 만든다.
 
     geom 은 EPSG:3857 POINT WKT. WKT 파싱 대신 숫자만 뽑아 벡터 변환한다
     (shapely.wkt.loads 를 20만 번 도는 것보다 훨씬 빠르다).
+    node_nm 은 교차로·지점 이름 — 도착지 목록에 코드 대신 보여준다.
     """
     global _node_lookup
     if _node_lookup is not None:
@@ -231,14 +234,19 @@ def _load_nodes() -> dict:
             _node_lookup = {}
             return _node_lookup
 
-        df = pd.read_csv(path, usecols=["geom", "node_id"], dtype={"node_id": str})
+        df = pd.read_csv(
+            path, usecols=["geom", "node_id", "node_nm"], dtype={"node_id": str}
+        )
         xy = df["geom"].str.extract(r"POINT\s*\(([-\d.]+)\s+([-\d.]+)\)")
         x = pd.to_numeric(xy[0], errors="coerce")
         y = pd.to_numeric(xy[1], errors="coerce")
         ok = x.notna() & y.notna()
         lng, lat = _NODE_TO_WGS84(x[ok].to_numpy(), y[ok].to_numpy())
-        _node_lookup = dict(zip(df.loc[ok, "node_id"], zip(lng.tolist(), lat.tolist())))
-        logger.info("노드 좌표 %d개 로딩", len(_node_lookup))
+        names = df.loc[ok, "node_nm"].fillna("").astype(str).str.strip()
+        _node_lookup = dict(
+            zip(df.loc[ok, "node_id"], zip(lng.tolist(), lat.tolist(), names.tolist()))
+        )
+        logger.info("노드 %d개 로딩 (이름 %d개)", len(_node_lookup), int((names != "").sum()))
     return _node_lookup
 
 
@@ -269,7 +277,6 @@ def dest_zones_geojson(session_dir: Path, zone: str) -> dict:
             "code": code,
             "kind": d["kind"],
             "name": d["name"],
-            "linkCount": d["linkCount"],
         }
         geom = None
 
@@ -282,7 +289,7 @@ def dest_zones_geojson(session_dir: Path, zone: str) -> dict:
             geom = {"type": "Point", "coordinates": [sh["lng"], sh["lat"]]}
             props["capacity"] = sh["capacity"]
         elif d["kind"] == "node" and code in nodes:
-            lng, lat = nodes[code]
+            lng, lat, _ = nodes[code]
             geom = {"type": "Point", "coordinates": [round(lng, 6), round(lat, 6)]}
 
         if geom is None:
@@ -336,14 +343,9 @@ def build_zone_paths(session_dir: Path, zone: str, dz: Optional[int] = None) -> 
     if not features:
         return None
 
-    max_count = int(counts.max())
     dest_count = int(df["dz"].nunique())
     logger.info("존 %s 대피 링크망 %d개 (목적지 %d)", zone, len(features), dest_count)
-    return {
-        "type": "FeatureCollection",
-        "features": features,
-        "meta": {"linkCount": len(features), "destCount": dest_count, "maxCount": max_count},
-    }
+    return {"type": "FeatureCollection", "features": features}
 
 
 def _round_geom(geom: dict, ndigits: int = 6) -> dict:

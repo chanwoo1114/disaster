@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Loader2, Route } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Loader2, Route, Search } from 'lucide-react';
 import type { PathDest, PathDestKind } from '../../types';
 
 /** 도착지 탭 — DZoneID 가 행정동/대피소/노드 세 체계로 섞여 있다 */
@@ -52,16 +52,26 @@ export default function PathPanel({
   const facilities = origins.filter((o) => o.kind === 'facility');
   const selected = origins.find((o) => o.code === selectedOrigin) ?? null;
   const [destTab, setDestTab] = useState<PathDestKind>('adm');
+  // 도착지는 행정동 탭만 중앙값 81개라 스크롤로는 못 찾는다 (출발지는 네이티브
+  // select 라 브라우저 타입어헤드가 대신한다)
+  const [destQuery, setDestQuery] = useState('');
+  // 출발지가 바뀌면 목록이 통째로 갈리므로 검색어를 들고 가지 않는다
+  useEffect(() => setDestQuery(''), [selectedOrigin]);
+
+  const needle = destQuery.trim().toLowerCase();
+  const matches = (d: PathDest) =>
+    !needle || d.name.toLowerCase().includes(needle) || String(d.dz).includes(needle);
 
   const destCounts = DEST_TABS.map((t) => ({
     ...t,
-    n: dests?.filter((d) => d.kind === t.kind).length ?? 0,
+    n: dests?.filter((d) => d.kind === t.kind && matches(d)).length ?? 0,
   }));
-  // 항목이 있는 첫 탭으로 넘어간다 (출발지에 따라 없는 종류가 있다)
+  // 항목이 있는 첫 탭으로 넘어간다 (출발지·검색어에 따라 비는 종류가 있다).
+  // 어느 탭에도 결과가 없으면 현재 탭에 머문다 — 타이핑 중에 탭이 튀지 않게
   const activeTab = destCounts.find((t) => t.kind === destTab && t.n > 0)
     ? destTab
-    : (destCounts.find((t) => t.n > 0)?.kind ?? 'adm');
-  const shown = dests?.filter((d) => d.kind === activeTab) ?? [];
+    : (destCounts.find((t) => t.n > 0)?.kind ?? destTab);
+  const shown = dests?.filter((d) => d.kind === activeTab && matches(d)) ?? [];
   const selectedDest = dests?.find((d) => d.dz === selectedDz) ?? null;
 
   return (
@@ -176,7 +186,21 @@ export default function PathPanel({
                 ))}
               </div>
 
+              <div className="relative mb-1.5">
+                <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="search"
+                  value={destQuery}
+                  onChange={(e) => setDestQuery(e.target.value)}
+                  placeholder="이름 또는 코드로 검색"
+                  className="w-full rounded-md border border-gray-300 bg-white py-1 pl-7 pr-2 text-xs text-gray-800 placeholder:text-gray-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-200"
+                />
+              </div>
+
               <div className="-mx-1 max-h-[40vh] min-h-[120px] overflow-y-auto px-1">
+                {shown.length === 0 && (
+                  <p className="px-2 py-2 text-xs text-gray-400">일치하는 도착지가 없습니다</p>
+                )}
                 {shown.map((d) => (
                   <button
                     key={d.dz}
@@ -190,7 +214,7 @@ export default function PathPanel({
                   >
                     <span className="truncate">{d.name}</span>
                     <span className="shrink-0 text-[10px] text-gray-400">
-                      링크 {d.linkCount.toLocaleString()}
+                      경로 {d.serials.length.toLocaleString()}
                     </span>
                   </button>
                 ))}

@@ -133,9 +133,10 @@ export function findVehicleRow(frames: VehicleFrames, frameIdx: number, vehId: n
   return -1;
 }
 
-/** 선택된 차량을 감싸는 빨간 링 */
-export function buildSelectionRing(frames: VehicleFrames, row: number): ScatterplotLayer | null {
+/** 선택된 차량을 감싸는 빨간 링. 숨겨진(알파 0) 차량이면 링도 그리지 않는다 */
+export function buildSelectionRing(frames: VehicleFrames, row: number, colors?: Uint8Array): ScatterplotLayer | null {
   if (row < 0) return null;
+  if (colors && colors[row * 4 + 3] === 0) return null;
   return new ScatterplotLayer({
     id: 'vehicle-selection',
     data: {

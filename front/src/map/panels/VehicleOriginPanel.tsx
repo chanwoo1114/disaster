@@ -65,7 +65,7 @@ export default function VehicleOriginPanel({
         고르지 않은 차량 숨기기
       </label>
 
-      <div className="-mx-1 max-h-[40vh] overflow-y-auto px-4 py-2">
+      <div className="max-h-[300px] overflow-y-auto px-3 py-2">
         {origins.map((o) => {
           const color = colorOf.get(o.code);
           const disabled = !color && full;

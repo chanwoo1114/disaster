@@ -113,7 +113,7 @@ export interface ZonePopulation {
 export type ZonePaths = FeatureCollection<
   LineString | MultiLineString,
   { link_id: number; count: number }
-> & { meta?: { linkCount: number; destCount: number; maxCount: number } };
+>;
 
 /** 선택 가능한 출발지 존 코드 목록 */
 export type PathOrigins = string[];
@@ -128,7 +128,6 @@ export interface PathDest {
   name: string;
   serials: number[];
   types: number[];
-  linkCount: number;
 }
 
 export interface ScenarioMeta {

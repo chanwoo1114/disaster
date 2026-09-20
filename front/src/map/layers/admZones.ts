@@ -133,19 +133,47 @@ export function setSelectedAdm(map: MLMap, code: string | null): void {
   map.setFilter(SELECTED, ['==', ['get', 'code'], code ?? '']);
 }
 
+/** 경로 분석 중, 배경 채움을 비울 행정동 코드 (도착지 후보) */
+let _maskCodes: string[] = [];
+
+/** 중립 모드 채움 불투명도 — 마스크 대상만 0 */
+function neutralFillOpacity(): unknown {
+  return _maskCodes.length
+    ? ['case', ['in', ['get', 'code'], ['literal', _maskCodes]], 0, 0.45]
+    : 0.45;
+}
+
 /**
- * 경로 분석 모드: 선택 불가능한 행정동을 중립 회색으로, 경계는 흰색으로.
- * 출발지(보라, origin-zones)와 대비되고, 경계가 흰색으로 통일돼 이중으로 보이지 않는다.
+ * 경로 분석: 도착지 후보 아래의 배경 채움을 비운다.
+ *
+ * 배경 행정동은 대상지 주변 일부만 로드되는데 도착지는 그보다 넓게 퍼져 있다.
+ * 반투명한 후보 색(청록)이 배경 있는 곳에선 파랑과, 없는 곳에선 회색 지도와 섞여
+ * 같은 후보끼리 색이 갈려 보인다. 배경을 비우면 어디서나 같은 색이 된다.
+ * codes=[] 로 해제.
+ */
+export function setAdmMask(map: MLMap, codes: string[]): void {
+  _maskCodes = codes;
+  if (!_neutral || !map.getLayer(FILL)) return;
+  map.setPaintProperty(FILL, 'fill-opacity', neutralFillOpacity() as never);
+}
+
+let _neutral = false;
+
+/**
+ * 경로 분석 모드: 선택 불가능한 행정동을 파랑으로, 경계는 흰색으로.
+ * 출발지(주황)·도착지(청록)와 대비되고, 경계가 흰색으로 통일돼 이중으로 보이지 않는다.
  * neutral=false 로 되돌리면 원래 hit/대피율 색·검은 경계를 복원한다.
  */
 export function setAdmNeutral(map: MLMap, neutral: boolean): void {
+  _neutral = neutral;
   if (!map.getLayer(FILL)) return;
   if (neutral) {
     map.setPaintProperty(FILL, 'fill-color', '#2563eb'); // 선택 불가 = 파랑 (주황의 보색)
-    map.setPaintProperty(FILL, 'fill-opacity', 0.45);
+    map.setPaintProperty(FILL, 'fill-opacity', neutralFillOpacity() as never);
     map.setPaintProperty(LINE, 'line-color', '#ffffff');
     if (map.getLayer(SELECTED)) map.setLayoutProperty(SELECTED, 'visibility', 'none');
   } else {
+    _maskCodes = [];
     map.setPaintProperty(FILL, 'fill-color', [
       'case',
       ['>=', ['coalesce', ['feature-state', 'evacPct'], -1], 0],

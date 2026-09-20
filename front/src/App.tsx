@@ -30,7 +30,7 @@ import {
   listOriginOptions,
 } from './map/layers/vehicleLayer';
 import { ADM_RADIUS_KM, damagePolygonOf, removeEvacZones, updateEvacZones } from './map/layers/evacZones';
-import { ADM_FILL_LAYER, clearAdmEvacRates, removeAdmZones, setAdmEvacRates, setAdmNeutral, setSelectedAdm, updateAdmZones } from './map/layers/admZones';
+import { ADM_FILL_LAYER, clearAdmEvacRates, removeAdmZones, setAdmEvacRates, setAdmMask, setAdmNeutral, setSelectedAdm, updateAdmZones } from './map/layers/admZones';
 import {
   ORIGIN_QUERY_LAYERS,
   addOriginZones,
@@ -180,9 +180,10 @@ export default function App() {
   showVehiclesRef.current = showVehicles;
   const frameRef = useRef(currentVehicleFrame);
   frameRef.current = currentVehicleFrame;
-  // 대피율/특수시설/경로 토글이 켜져 있으면 행정동 클릭을 링크보다 우선한다
+  // 대피율/경로 토글이 켜져 있으면 행정동 클릭을 링크보다 우선한다.
+  // 특수시설만 켠 상태는 제외 — 시설 점만 선택되고 행정동은 잡히지 않는다
   const admPriorityRef = useRef(false);
-  admPriorityRef.current = showZoneEvac || showEtcFacilities || showZonePath;
+  admPriorityRef.current = showZoneEvac || showZonePath;
   // 경로 분석 모드: 행정동 클릭 = 출발지 선택
   const pathModeRef = useRef(false);
   pathModeRef.current = showZonePath;
@@ -215,16 +216,22 @@ export default function App() {
     // 경로 분석 모드: 활성 슬롯(출발지/도착지)에 해당하는 레이어만 잡는다
     if (map && pathModeRef.current) {
       const toDest = pathTargetRef.current === 'dest';
-      const layers = (toDest ? DEST_QUERY_LAYERS : ORIGIN_QUERY_LAYERS).filter((id) => map.getLayer(id));
-      if (layers.length) {
-        // 점은 작아서 정확히 누르기 어려우므로 약간의 여유를 준다
+      const [pointLayer, fillLayer] = toDest ? DEST_QUERY_LAYERS : ORIGIN_QUERY_LAYERS;
+      if (map.getLayer(pointLayer) || map.getLayer(fillLayer)) {
+        // 점은 작아서 정확히 누르기 어려우므로 여유를 주고, 점이 면 위에 있으므로 먼저 잡는다.
+        // 면은 클릭 지점 그대로 잡는다 — 여유를 주면 도심의 작은 행정동(화면상 6~10px)이
+        // 이웃 동과 같이 잡혀 렌더 순서상 첫 것에 뺏긴다.
         const bbox: [PointLike, PointLike] = [
           [e.x - 6, e.y - 6],
           [e.x + 6, e.y + 6],
         ];
-        const feats = map.queryRenderedFeatures(bbox, { layers });
-        // 점이 면 위에 있으므로 점을 우선 선택
-        const f = feats.find((ft) => ft.properties?.kind !== 'adm') ?? feats[0];
+        const f =
+          (map.getLayer(pointLayer)
+            ? map.queryRenderedFeatures(bbox, { layers: [pointLayer] })[0]
+            : undefined) ??
+          (map.getLayer(fillLayer)
+            ? map.queryRenderedFeatures([e.x, e.y] as PointLike, { layers: [fillLayer] })[0]
+            : undefined);
         if (f?.properties?.code != null) {
           setSelection(null);
           if (toDest) setPathDz(Number(f.properties.code));
@@ -269,11 +276,11 @@ export default function App() {
       return false;
     };
 
-    // 대피율/특수시설 모드가 아닐 때만 링크를 먼저 잡는다
+    // 대피율/경로 모드가 아닐 때만 링크를 먼저 잡는다
     if (!admPriorityRef.current && pickLink()) return;
 
     // 행정동 폴리곤 (배경 레이어라 어디를 눌러도 잡힌다)
-    // 대피율/특수시설/경로 토글이 꺼져 있으면 행정동 대피 정보 카드를 띄우지 않는다
+    // 대피율/경로 토글이 꺼져 있으면 행정동 대피 정보 카드를 띄우지 않는다
     if (map && admPriorityRef.current && map.getLayer(ADM_FILL_LAYER)) {
       const feats = map.queryRenderedFeatures([e.x, e.y] as PointLike, { layers: [ADM_FILL_LAYER] });
       const f = feats[0];
@@ -622,13 +629,24 @@ export default function App() {
     if (!map || !mapReady) return;
     if (!showZonePath || !destZones) {
       removeDestZones(map);
+      setAdmMask(map, []);
       return;
     }
     addDestZones(map, destZones);
+    // 후보 아래 배경을 비운다 — 배경 유무로 후보끼리 색이 갈리지 않게
+    setAdmMask(
+      map,
+      destZones.features
+        .filter((f) => f.properties?.kind === 'adm')
+        .map((f) => String(f.properties!.code)),
+    );
     setDestActive(map, pathTarget === 'dest');
     setSelectedDest(map, pathDz == null ? null : String(pathDz));
     return () => {
-      if (map.getStyle()) removeDestZones(map);
+      if (map.getStyle()) {
+        removeDestZones(map);
+        setAdmMask(map, []);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showZonePath, destZones, mapReady, styleVersion]);
@@ -778,7 +796,7 @@ export default function App() {
       if (iconLayer) layers.push(iconLayer);
       if (selection?.kind === 'vehicle') {
         const row = findVehicleRow(vehicles, currentVehicleFrame, selection.vehId);
-        const ring = buildSelectionRing(vehicles, row);
+        const ring = buildSelectionRing(vehicles, row, originColors);
         if (ring) layers.push(ring);
       }
     }
@@ -924,7 +942,9 @@ export default function App() {
   if (selection?.kind === 'vehicle' && vehicles) {
     const row =
       currentVehicleFrame >= 0 ? findVehicleRow(vehicles, currentVehicleFrame, selection.vehId) : -1;
-    cardData = {
+    // 숨겨진 차량(알파 0)이면 링과 함께 카드도 닫는다
+    const hidden = row >= 0 && !!originColors && originColors[row * 4 + 3] === 0;
+    cardData = hidden ? null : {
       kind: 'vehicle',
       vehId: selection.vehId,
       aux: vehInfo[String(selection.vehId)] ?? null,
