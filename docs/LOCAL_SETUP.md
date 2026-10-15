@@ -2,48 +2,38 @@
 
 작업 시작 전에 이 순서대로 확인하세요. 특히 **1번**은 과거에 한 번 사고가 났던 지점입니다.
 
-## 1. git 에셋이 디스크에 있는지 확인 (가장 먼저)
+## 1. 대용량 데이터 확보 (가장 먼저)
 
-이 저장소에는 git에만 들어 있고 코드로는 생성할 수 없는 파일이 있습니다.
+**clone만으로는 앱이 돌지 않습니다.** 아래 파일들은 저장소에 들어 있지 않고
+`.gitignore`로 제외돼 있습니다. 별도로 받아서 정확한 경로에 두어야 합니다.
 
-| 경로 | 내용 | LFS | 없으면 |
-|------|------|-----|--------|
-| `tt.zip` | 업로드 테스트용 시뮬레이션 결과 ZIP (226MB) | ✅ | 3단계 업로드를 시험할 수 없음 |
-| `backend/app/data/*.csv`, `*.parquet` | 도로(link) · 노드 · 행정구역 원본 | ✅ | 도로/행정구역 API가 전부 실패 |
-| `front/src/assets/images/**` | 차량 스프라이트 396개 (bus, taxi, L/M/S_truck, auto × 각 36장) | — | 차량이 지도에 안 그려짐 |
+| 두어야 할 경로 | 내용 | 크기 | 없으면 |
+|------|------|------|--------|
+| `file/tt.zip` | 업로드 테스트용 결과 ZIP | 226MB | 3단계 업로드를 시험할 수 없음 |
+| `file/macro.zip` | 매크로 시뮬레이션 결과 | 94MB | 〃 |
+| `file/micro.zip` | 마이크로 시뮬레이션 결과 | 98MB | 〃 |
+| `backend/app/data/link.csv` | 도로 링크 원본 | 461MB | 도로 API 실패 |
+| `backend/app/data/adm.csv` | 행정구역 원본 | 320MB | 행정구역 API 실패 |
+| `backend/app/data/links.parquet` | 링크 네트워크 | 138MB | 〃 |
+| `backend/app/data/node.csv` | 노드 원본 | 22MB | 〃 |
 
-### 1-a. Git LFS — 가장 먼저 설치
+`backend/app/data/` 경로는 `backend/app/config.py`의 `DATA_DIR`에 하드코딩돼
+있습니다. 다른 곳에 두려면 코드를 함께 고쳐야 합니다.
 
-`.gitattributes`가 `tt.zip`과 `backend/app/data/*`를 **Git LFS**로 관리합니다.
-LFS 없이 clone하면 이 파일들은 **134바이트짜리 포인터 텍스트**로 받아집니다.
-파일은 "있는데" 열면 깨지는, 제일 헷갈리는 실패 모드입니다.
+> **왜 저장소에 없나** — 합계 1.36GB라 git에 넣으면 clone이 무거워지고,
+> Git LFS를 쓰면 GitHub 무료 한도(저장소 1GB·대역폭 1GB/월)를 넘겨
+> 팀원 전체의 pull이 막힙니다. 2026-10-15에 LFS 사용을 중단했습니다.
+> 이 파일들은 git이 아니라 별도 공유 경로(드라이브 등)로 주고받습니다.
 
-```bash
-git lfs version        # 없으면 https://git-lfs.com 에서 설치
-git lfs install        # 계정당 1회
-git lfs pull           # 실제 내용 받기
-```
+### 반대로, git에 들어 있는 에셋
 
-포인터인지 아닌지 판별 — 크기가 134바이트면 포인터입니다:
-
-```bash
-ls -l tt.zip                  # 226MB여야 정상. 134바이트면 포인터
-head -c 60 tt.zip             # "version https://git-lfs..." 가 보이면 포인터
-```
-
-### 1-b. 파일이 아예 사라진 경우
-
-```bash
-git status --porcelain | head
-```
-
-비어 있으면 정상입니다. `D`가 잔뜩 뜨거나 `??`로 디렉터리 전체가 추적되지 않는 것처럼 보이면 인덱스가 날아간 것(`git rm --cached -r .` 류)이니 아래로 복구하세요.
+`front/src/assets/images/**` 의 차량 스프라이트 396개는 저장소에 있습니다.
+이게 비어 있다면 인덱스가 날아간 것(`git rm --cached -r .` 류)이니 복구하세요.
 
 ```bash
 git diff HEAD --name-status | grep -v '^D'   # 반드시 먼저! 출력이 비어야 안전
 git reset                                     # 인덱스를 HEAD로 되돌림
 git checkout -- .                             # 유실된 파일을 HEAD에서 복원
-git lfs pull                                  # LFS 실물 내려받기 (checkout만으론 부족)
 ```
 
 > 첫 줄이 **비어 있을 때만** 나머지를 실행하세요. 뭔가 출력되면 커밋되지 않은 수정분이 있다는 뜻이고, `git checkout -- .` 이 그걸 덮어씁니다.
@@ -114,5 +104,5 @@ cd front && npm run dev
 
 ## 5. 동작 확인
 
-`tt.zip`을 1단계(재난 유형) · 2단계(대상지) 선택 후 3단계에 업로드하면 전체 흐름이 돕니다.
+`file/tt.zip`을 1단계(재난 유형) · 2단계(대상지) 선택 후 3단계에 업로드하면 전체 흐름이 돕니다.
 세션은 저장되지 않고 `backend/app/data/sessions/{id}/`에 6시간만 남습니다.

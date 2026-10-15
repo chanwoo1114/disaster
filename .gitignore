@@ -19,13 +19,9 @@ backend/app/data/
 # OS
 .DS_Store
 
-# 시뮬레이션 데이터 (대용량)
+# 시뮬레이션 데이터 (대용량) — 저장소에 넣지 않는다.
+# 실물은 file/ 에 두고 공유는 별도 경로로 한다. docs/LOCAL_SETUP.md 참조
 *.zip
-# 압축을 푼 결과 폴더 (1.6GB) — tt.zip 만 LFS로 관리한다
 /tt/
-
-# 아래 세 개는 예외적으로 포함 (Git LFS)
-!tt.zip
-!macro.zip
-!micro.zip
+/file/
 img.png
