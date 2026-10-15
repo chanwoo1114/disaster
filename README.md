@@ -33,11 +33,16 @@ disaster/
 ## 시작하기
 
 > **처음 clone했다면 [로컬 실행 체크리스트](./docs/LOCAL_SETUP.md)를 먼저 보세요.**
-> 시뮬레이션 ZIP과 `backend/app/data/*`(합계 1.36GB)는 저장소에 없습니다. 별도로 받아야 앱이 돕니다.
+> 대용량 데이터는 `file/` 의 ZIP 4개(859MB)에 Git LFS로 들어 있습니다.
+> `git lfs pull` 과 `data.zip` 압축 해제를 하지 않으면 앱이 돌지 않습니다.
 
 ### 로컬 개발
 
 ```bash
+git lfs install && git lfs pull                  # file/ ZIP 4개 받기 (859MB)
+mkdir -p backend/app/data
+unzip -o file/data.zip -d backend/app/data/      # 백엔드가 읽는 경로에 풀기
+
 cp .env.example front/.env      # VITE_VWORLD_API_KEY 입력 (없으면 OSM 지도로 동작)
 
 # 백엔드
@@ -70,7 +75,9 @@ docker-compose up -d --build   # 프론트 :5001, 백엔드 :8001
 
 ## 도로 데이터
 
-`backend/app/data/link.csv` (`link_id`, `geom`(WKT, EPSG:3857), `cartrk_co`)가 있어야 도로 조회가 동작합니다. 최초 요청 시 `link_4326.parquet` / `link_5179.parquet`로 변환되어 캐시됩니다. `backend/app/data/`는 git에 포함되지 않습니다.
+`backend/app/data/link.csv` (`link_id`, `geom`(WKT, EPSG:3857), `cartrk_co`)가 있어야 도로 조회가 동작합니다. 최초 요청 시 `link_4326.parquet` / `link_5179.parquet`로 변환되어 캐시됩니다.
+
+이 파일들은 `file/data.zip` 안에 들어 있습니다 — `unzip -o file/data.zip -d backend/app/data/` 로 풉니다. 풀어놓은 원본은 git에 포함되지 않고, 저장소에는 ZIP만 LFS로 들어갑니다.
 
 자세한 내용은 각 디렉토리의 README를 참조하세요.
 - [로컬 실행 체크리스트](./docs/LOCAL_SETUP.md) — 대용량 데이터, `.env` 위치, 자주 걸리는 함정

@@ -19,9 +19,14 @@ backend/app/data/
 # OS
 .DS_Store
 
-# 시뮬레이션 데이터 (대용량) — 저장소에 넣지 않는다.
-# 실물은 file/ 에 두고 공유는 별도 경로로 한다. docs/LOCAL_SETUP.md 참조
+# 시뮬레이션 데이터 (대용량)
+# file/ 의 ZIP 4개만 Git LFS로 관리하고, 압축을 푼 원본은 제외한다.
+# backend/app/data/ 는 위 "Data" 항목에서 이미 제외됨
 *.zip
 /tt/
-/file/
 img.png
+
+# file/ 안에서는 ZIP만 추적한다 (디렉터리 자체를 제외하면 안 됨 —
+# 부모가 제외되면 하위 파일을 ! 로 되살릴 수 없다)
+file/*
+!file/*.zip

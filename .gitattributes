@@ -1,2 +1,4 @@
-# Git LFS 사용을 중단했다. 대용량 데이터는 저장소에 넣지 않고
-# file/ 과 backend/app/data/ 에 로컬로 둔다. docs/LOCAL_SETUP.md 참조
+# 시뮬레이션 데이터는 file/ 에 ZIP으로 모아 Git LFS로 관리한다.
+# 풀어놓은 원본(backend/app/data/*.csv 등)은 저장소에 넣지 않는다.
+# docs/LOCAL_SETUP.md 참조
+file/*.zip filter=lfs diff=lfs merge=lfs -text

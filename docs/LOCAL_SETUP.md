@@ -4,35 +4,47 @@
 
 ## 1. 대용량 데이터 확보 (가장 먼저)
 
-**clone만으로는 앱이 돌지 않습니다.** 아래 파일들은 저장소에 들어 있지 않고
-`.gitignore`로 제외돼 있습니다. 별도로 받아서 정확한 경로에 두어야 합니다.
-
-**`file/` 폴더가 전체 원본 세트입니다** (7개, 1.36GB). 여기서 받아
-아래 경로로 배치하세요.
-
-| 파일 | 두어야 할 경로 | 크기 | 없으면 |
-|------|------|------|--------|
-| `tt.zip` | `file/` 그대로 | 226MB | 3단계 업로드를 시험할 수 없음 |
-| `macro.zip` | `file/` 그대로 | 94MB | 〃 |
-| `micro.zip` | `file/` 그대로 | 98MB | 〃 |
-| `link.csv` | **`backend/app/data/`로 복사** | 461MB | 도로 API 실패 |
-| `adm.csv` | **`backend/app/data/`로 복사** | 320MB | 행정구역 API 실패 |
-| `links.parquet` | **`backend/app/data/`로 복사** | 138MB | 〃 |
-| `node.csv` | **`backend/app/data/`로 복사** | 22MB | 〃 |
+**clone 직후에는 앱이 돌지 않습니다.** 두 단계가 필요합니다 —
+LFS 실물을 받고, 그 중 `data.zip`을 백엔드 경로에 풀어야 합니다.
 
 ```bash
+git lfs install        # 계정당 1회
+git lfs pull           # file/ 의 ZIP 4개 내려받기 (859MB)
+
+# data.zip 을 백엔드가 읽는 경로에 푼다
 mkdir -p backend/app/data
-cp file/link.csv file/adm.csv file/links.parquet file/node.csv backend/app/data/
+unzip -o file/data.zip -d backend/app/data/
 ```
 
-`backend/app/data/` 경로는 `backend/app/config.py`의 `DATA_DIR`에 하드코딩돼
-있습니다. 다른 곳에 두려면 코드를 함께 고쳐야 합니다. 그래서 `file/`의 4개는
-원본 보관용이고, 백엔드가 읽는 실물은 `backend/app/data/` 쪽입니다.
+### `file/` 의 ZIP 4개 (Git LFS)
 
-> **왜 저장소에 없나** — 합계 1.36GB라 git에 넣으면 clone이 무거워지고,
-> Git LFS를 쓰면 GitHub 무료 한도(저장소 1GB·대역폭 1GB/월)를 넘겨
-> 팀원 전체의 pull이 막힙니다. 2026-10-15에 LFS 사용을 중단했습니다.
-> 이 파일들은 git이 아니라 별도 공유 경로(드라이브 등)로 주고받습니다.
+| 파일 | 크기 | 내용 | 없으면 |
+|------|------|------|--------|
+| `data.zip` | 441MB | `link.csv` · `adm.csv` · `links.parquet` · `node.csv` | 도로·행정구역 API 전부 실패 |
+| `tt.zip` | 226MB | 업로드 테스트용 결과 | 3단계 업로드를 시험할 수 없음 |
+| `micro.zip` | 98MB | 마이크로 시뮬레이션 결과 | 〃 |
+| `macro.zip` | 94MB | 매크로 시뮬레이션 결과 | 〃 |
+
+`data.zip`의 4개는 **압축을 푼 상태로 `backend/app/data/`에 있어야** 합니다.
+이 경로는 `backend/app/config.py`의 `DATA_DIR`에 하드코딩돼 있어서
+다른 곳에 두려면 코드를 함께 고쳐야 합니다.
+풀어놓은 원본은 `.gitignore`로 제외되니 저장소에 다시 들어가지 않습니다.
+
+> **왜 ZIP으로 묶어 두나** — 원본 4개는 합계 941MB인데 압축하면 441MB로
+> 절반 이하가 됩니다(`links.parquet`은 이미 압축 포맷이라 거의 안 줄어듦).
+> GitHub 무료 LFS 한도가 저장소 1GB·대역폭 1GB/월이라, 풀어서 올리면
+> 한도를 넘겨 팀원 전체의 `git lfs pull`이 막힙니다. ZIP 4개 합계
+> 859MB로 한도 안에 들어갑니다.
+
+### 포인터인지 실물인지 판별
+
+LFS 없이 clone하면 이 파일들은 **134바이트 포인터 텍스트**로 받아집니다.
+"파일은 있는데 열면 깨지는" 제일 헷갈리는 실패 모드입니다.
+
+```bash
+ls -l file/data.zip           # 441MB여야 정상. 134바이트면 포인터
+head -c 60 file/data.zip      # "version https://git-lfs..." 가 보이면 포인터
+```
 
 ### 반대로, git에 들어 있는 에셋
 
