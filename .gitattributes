@@ -1,3 +1,5 @@
 tt.zip filter=lfs diff=lfs merge=lfs -text
+macro.zip filter=lfs diff=lfs merge=lfs -text
+micro.zip filter=lfs diff=lfs merge=lfs -text
 backend/app/data/*.csv filter=lfs diff=lfs merge=lfs -text
 backend/app/data/*.parquet filter=lfs diff=lfs merge=lfs -text

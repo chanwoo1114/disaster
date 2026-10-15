@@ -24,6 +24,8 @@ backend/app/data/
 # 압축을 푼 결과 폴더 (1.6GB) — tt.zip 만 LFS로 관리한다
 /tt/
 
-# tt.zip은 예외적으로 포함 (Git LFS)
+# 아래 세 개는 예외적으로 포함 (Git LFS)
 !tt.zip
+!macro.zip
+!micro.zip
 img.png
