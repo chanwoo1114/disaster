@@ -7,18 +7,27 @@
 **clone만으로는 앱이 돌지 않습니다.** 아래 파일들은 저장소에 들어 있지 않고
 `.gitignore`로 제외돼 있습니다. 별도로 받아서 정확한 경로에 두어야 합니다.
 
-| 두어야 할 경로 | 내용 | 크기 | 없으면 |
+**`file/` 폴더가 전체 원본 세트입니다** (7개, 1.36GB). 여기서 받아
+아래 경로로 배치하세요.
+
+| 파일 | 두어야 할 경로 | 크기 | 없으면 |
 |------|------|------|--------|
-| `file/tt.zip` | 업로드 테스트용 결과 ZIP | 226MB | 3단계 업로드를 시험할 수 없음 |
-| `file/macro.zip` | 매크로 시뮬레이션 결과 | 94MB | 〃 |
-| `file/micro.zip` | 마이크로 시뮬레이션 결과 | 98MB | 〃 |
-| `backend/app/data/link.csv` | 도로 링크 원본 | 461MB | 도로 API 실패 |
-| `backend/app/data/adm.csv` | 행정구역 원본 | 320MB | 행정구역 API 실패 |
-| `backend/app/data/links.parquet` | 링크 네트워크 | 138MB | 〃 |
-| `backend/app/data/node.csv` | 노드 원본 | 22MB | 〃 |
+| `tt.zip` | `file/` 그대로 | 226MB | 3단계 업로드를 시험할 수 없음 |
+| `macro.zip` | `file/` 그대로 | 94MB | 〃 |
+| `micro.zip` | `file/` 그대로 | 98MB | 〃 |
+| `link.csv` | **`backend/app/data/`로 복사** | 461MB | 도로 API 실패 |
+| `adm.csv` | **`backend/app/data/`로 복사** | 320MB | 행정구역 API 실패 |
+| `links.parquet` | **`backend/app/data/`로 복사** | 138MB | 〃 |
+| `node.csv` | **`backend/app/data/`로 복사** | 22MB | 〃 |
+
+```bash
+mkdir -p backend/app/data
+cp file/link.csv file/adm.csv file/links.parquet file/node.csv backend/app/data/
+```
 
 `backend/app/data/` 경로는 `backend/app/config.py`의 `DATA_DIR`에 하드코딩돼
-있습니다. 다른 곳에 두려면 코드를 함께 고쳐야 합니다.
+있습니다. 다른 곳에 두려면 코드를 함께 고쳐야 합니다. 그래서 `file/`의 4개는
+원본 보관용이고, 백엔드가 읽는 실물은 `backend/app/data/` 쪽입니다.
 
 > **왜 저장소에 없나** — 합계 1.36GB라 git에 넣으면 clone이 무거워지고,
 > Git LFS를 쓰면 GitHub 무료 한도(저장소 1GB·대역폭 1GB/월)를 넘겨
