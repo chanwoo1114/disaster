@@ -8,6 +8,11 @@ ZoneID 가 행정동 코드(emd_code, 8자리)와 1:1로 일치함을 확인했�
           No.ArrivalInShelter %ArrivalInShelter
 존은 하나의 구역(PAZ/UPZW/UPZ)에만 속하므로 이탈률은 세 구역 % 중 최댓값을 쓴다.
 
+컬럼(10): Time ZoneID Perm.Evacuee Perm.ExitInArea %.. Temp.Evacuee Temp.ExitInArea %..
+          No.ArrivalInShelter %ArrivalInShelter
+매크로·마이크로 결과(2026-10-15)는 구역 구분 없이 이탈률 하나만 준다.
+이때 area·permByArea·tempByArea 는 null 로 내보낸다 (프론트가 null 을 처리함).
+
 8자리 미만 ZoneID(예: 100000)는 행정동이 아니라 특수시설(학교 등)로,
 InputData 의 special_facility.txt id 와 매칭된다 (2026-09-03 확인 — 양남중학교 등).
 이들의 이름·좌표를 "etc" 로 함께 내보내 시설 점 표출에 쓴다.
@@ -31,6 +36,9 @@ _COLS = [
     "temp",
     "te_paz", "tp_paz", "te_upzw", "tp_upzw", "te_upz", "tp_upz",
     "sh_arr", "sh_pct",
+]
+_COLS_SINGLE = [
+    "time", "zone", "perm", "pe", "pp", "temp", "te", "tp", "sh_arr", "sh_pct",
 ]
 _HHMM = re.compile(r"^(\d{1,2}):(\d{2})$")
 
@@ -91,25 +99,39 @@ def build(scen_dir: Path, session_root: Optional[Path] = None) -> Optional[dict]
         return None
 
     try:
+        with open(path, "r", encoding="cp949", errors="replace") as f:
+            n_header = len(f.readline().split())
+    except OSError:
+        return None
+    by_area = n_header == len(_COLS)
+    cols = _COLS if by_area else _COLS_SINGLE
+    if n_header != len(cols):
+        return None
+
+    try:
         df = pd.read_csv(
-            path, sep=r"\s+", header=None, skiprows=1, names=_COLS,
+            path, sep=r"\s+", header=None, skiprows=1, names=cols,
             encoding="cp949", encoding_errors="replace",
         )
     except (ValueError, pd.errors.EmptyDataError, OSError):
         return None
-    if df.empty or df.shape[1] != len(_COLS):
+    if df.empty:
         return None
 
     df["time"] = df["time"].map(_to_seconds)
-    for c in _COLS[1:]:
+    for c in cols[1:]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
     df = df.dropna(subset=["time", "zone"])
     if df.empty:
         return None
 
     df["zone"] = df["zone"].astype("int64").astype(str)
-    df["perm_pct"] = df[["pp_paz", "pp_upzw", "pp_upz"]].max(axis=1)
-    df["temp_pct"] = df[["tp_paz", "tp_upzw", "tp_upz"]].max(axis=1)
+    if by_area:
+        df["perm_pct"] = df[["pp_paz", "pp_upzw", "pp_upz"]].max(axis=1)
+        df["temp_pct"] = df[["tp_paz", "tp_upzw", "tp_upz"]].max(axis=1)
+    else:
+        df["perm_pct"] = df["pp"]
+        df["temp_pct"] = df["tp"]
 
     times = sorted(int(t) for t in df["time"].unique())
 
@@ -123,43 +145,45 @@ def build(scen_dir: Path, session_root: Optional[Path] = None) -> Optional[dict]
     g_temp = grid("temp_pct")
     g_spct = grid("sh_pct")
     g_sarr = grid("sh_arr")
-    # 구역별 이탈률 계열 (PAZ/UPZW/UPZ 전부 — 카드에서 각각 표시)
-    g_area = {
-        ("perm", "PAZ"): grid("pp_paz"),
-        ("perm", "UPZW"): grid("pp_upzw"),
-        ("perm", "UPZ"): grid("pp_upz"),
-        ("temp", "PAZ"): grid("tp_paz"),
-        ("temp", "UPZW"): grid("tp_upzw"),
-        ("temp", "UPZ"): grid("tp_upz"),
-    }
-
     pops = df.groupby("zone").agg(perm=("perm", "max"), temp=("temp", "max"))
-    exits = df.groupby("zone").agg(
-        paz=("pe_paz", "max"), upzw=("pe_upzw", "max"), upz=("pe_upz", "max")
-    )
+
+    def series(g: pd.DataFrame, z: str) -> list:
+        return [round(float(x), 2) for x in g[z].tolist()]
+
+    if by_area:
+        # 구역별 이탈률 계열 (PAZ/UPZW/UPZ 전부 — 카드에서 각각 표시)
+        g_area = {
+            ("perm", "PAZ"): grid("pp_paz"),
+            ("perm", "UPZW"): grid("pp_upzw"),
+            ("perm", "UPZ"): grid("pp_upz"),
+            ("temp", "PAZ"): grid("tp_paz"),
+            ("temp", "UPZW"): grid("tp_upzw"),
+            ("temp", "UPZ"): grid("tp_upz"),
+        }
+        exits = df.groupby("zone").agg(
+            paz=("pe_paz", "max"), upzw=("pe_upzw", "max"), upz=("pe_upz", "max")
+        )
 
     zones = {}
     for z in pops.index:
-        ex = exits.loc[z]
         area = None
-        if ex.max() > 0:
-            area = {"paz": "PAZ", "upzw": "UPZW", "upz": "UPZ"}[ex.idxmax()]
+        perm_by_area = temp_by_area = None
+        if by_area:
+            ex = exits.loc[z]
+            if ex.max() > 0:
+                area = {"paz": "PAZ", "upzw": "UPZW", "upz": "UPZ"}[ex.idxmax()]
+            perm_by_area = {a: series(g_area[("perm", a)], z) for a in ("PAZ", "UPZW", "UPZ")}
+            temp_by_area = {a: series(g_area[("temp", a)], z) for a in ("PAZ", "UPZW", "UPZ")}
         zones[z] = {
             "area": area,
             "perm": int(pops.loc[z, "perm"]),
             "temp": int(pops.loc[z, "temp"]),
-            "permPct": [round(float(x), 2) for x in g_perm[z].tolist()],
-            "tempPct": [round(float(x), 2) for x in g_temp[z].tolist()],
-            "shelterPct": [round(float(x), 2) for x in g_spct[z].tolist()],
+            "permPct": series(g_perm, z),
+            "tempPct": series(g_temp, z),
+            "shelterPct": series(g_spct, z),
             "shelterArr": [int(x) for x in g_sarr[z].tolist()],
-            "permByArea": {
-                a: [round(float(x), 2) for x in g_area[("perm", a)][z].tolist()]
-                for a in ("PAZ", "UPZW", "UPZ")
-            },
-            "tempByArea": {
-                a: [round(float(x), 2) for x in g_area[("temp", a)][z].tolist()]
-                for a in ("PAZ", "UPZW", "UPZ")
-            },
+            "permByArea": perm_by_area,
+            "tempByArea": temp_by_area,
         }
 
     # 8자리 미만 = 특수시설 존 → special_facility 에서 이름·좌표 부착

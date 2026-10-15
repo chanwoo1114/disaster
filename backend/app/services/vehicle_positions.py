@@ -9,7 +9,11 @@ pos 는 (lng, lat) interleave 라 프레임 구간을 subarray 로 잘라 deck.g
 attribute 에 바로 꽂을 수 있다.
 
 파일 형식 (공백 구분, 헤더 1줄):
-  Time VehicleID Occupancy direction x y
+  매크로  VehicleLocation_{HH}.txt     Time VehicleID Occupancy direction x y        (5분 간격)
+  마이크로 Vehicle_Position_{HHMM}.txt  Time VehID Direction X Y Speed Mode Occupancy (1초 간격)
+
+마이크로는 1초 간격이라 그대로 쓰면 560만 행(산출물 ~100MB)이 된다. 프론트는 프레임을
+보간 없이 시각으로 고르므로 _MICRO_STEP 초 단위 버킷마다 차량별 마지막 위치만 남긴다.
 """
 
 import json
@@ -27,6 +31,9 @@ logger = logging.getLogger(__name__)
 
 _FILE_RE = re.compile(r"^VehicleLocation_(\d+)\.txt$", re.IGNORECASE)
 _COLS = ["time", "veh_id", "occupancy", "direction", "lng", "lat"]
+_MICRO_FILE_RE = re.compile(r"^Vehicle_Position_(\d+)\.txt$", re.IGNORECASE)
+_MICRO_COLS = ["time", "veh_id", "direction", "lng", "lat", "speed", "mode", "occupancy"]
+_MICRO_STEP = 10  # 초
 
 META_FILE = "vehicle_positions.json"
 BIN_FILE = "vehicle_positions.bin"
@@ -36,7 +43,8 @@ INFO_FILE = "vehicle_info.json"
 # 올리면 이전 세션의 캐시된 산출물이 무시되고 다시 생성된다.
 # 4: adm.csv 도입 전 캐시는 출발지·도착지가 "행정동 37020360" 으로 굳어 있다
 # 5: 특수시설 도착지에 facilityType(학교/병원/요양원) 추가
-VERSION = 5
+# 6: 마이크로(Vehicle_Position_*.txt) 지원
+VERSION = 6
 
 _AUX_HOUSE = "PermanentHouseAuto.txt"  # VehicleID HouseID StartTime Occupancy
 _AUX_PERSON = "PermanentPersonAuto.txt"  # VehicleID PersonID StartTime Occupancy
@@ -75,26 +83,43 @@ def summary_from_meta(session_dir: Path) -> Optional[dict]:
     }
 
 
-def _find_files(session_dir: Path) -> Dict[int, Path]:
+def _find_files(session_dir: Path, pattern: re.Pattern) -> Dict[int, Path]:
     files: Dict[int, Path] = {}
     for p in session_dir.iterdir():
-        m = _FILE_RE.match(p.name)
+        m = pattern.match(p.name)
         if m:
             files[int(m.group(1))] = p
     return dict(sorted(files.items()))
 
 
-def _read_file(path: Path) -> Optional[pd.DataFrame]:
+def _read_file(path: Path, cols: list = _COLS) -> Optional[pd.DataFrame]:
     if path.stat().st_size == 0:
         return None
     try:
         df = pd.read_csv(path, sep=r"\s+", header=None, skiprows=1, encoding="cp949")
     except (ValueError, pd.errors.EmptyDataError):
         return None
-    if df.empty or df.shape[1] != len(_COLS):
+    if df.empty or df.shape[1] != len(cols):
         return None
-    df.columns = _COLS
+    df.columns = cols
     return df
+
+
+def _read_micro(path: Path) -> Optional[pd.DataFrame]:
+    df = _read_file(path, _MICRO_COLS)
+    if df is None:
+        return None
+    df = df[(df["lng"] != 0) & (df["lat"] != 0)]  # 미배치 차량이 (0, 0)으로 찍혀 나온다
+    df["time"] = df["time"] // _MICRO_STEP * _MICRO_STEP
+    return df.drop_duplicates(["time", "veh_id"], keep="last")[_COLS]
+
+
+def _load_frames(session_dir: Path) -> list:
+    files = _find_files(session_dir, _FILE_RE)
+    if files:
+        return [df for df in (_read_file(p) for p in files.values()) if df is not None]
+    files = _find_files(session_dir, _MICRO_FILE_RE)
+    return [df for df in (_read_micro(p) for p in files.values()) if df is not None]
 
 
 def _read_aux(path: Path, ncols: int) -> Optional[pd.DataFrame]:
@@ -321,11 +346,7 @@ def build(session_dir: Path, session_root: Optional[Path] = None) -> Optional[di
     session_root 는 대피소·특수시설 이름 원본(InputData/…)이 시나리오 폴더가 아니라
     세션 전체에 있어서 받는다. 없으면 출발지·도착지가 코드로 남는다.
     """
-    files = _find_files(session_dir)
-    if not files:
-        return None
-
-    frames = [df for df in (_read_file(p) for p in files.values()) if df is not None]
+    frames = _load_frames(session_dir)
     if not frames:
         return None
 

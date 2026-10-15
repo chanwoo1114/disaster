@@ -135,10 +135,25 @@ export default function App() {
   const painterRef = useRef<LinkTrafficPainter | null>(null);
   const indexRef = useRef(0);
 
-  // 타임라인 축: 소통정보 > 차량 스냅샷 > 대피율 시점 순으로 사용
-  const playTimes = traffic?.times ?? vehicles?.times ?? shelterStatus?.times ?? null;
+  // 타임라인 축: 소통정보 ∪ 차량 스냅샷 (둘 다 없으면 대피율 시점).
+  // 매크로는 두 축이 같은 5분 그리드라 합쳐도 그대로이고, 마이크로는 차량이
+  // 10초 간격이라 합쳐야 소통정보 시간대 밖·사이의 차량 프레임까지 재생된다.
+  const playTimes = useMemo(() => {
+    if (!traffic && !vehicles) return shelterStatus?.times ?? null;
+    const set = new Set<number>([...(traffic?.times ?? []), ...(vehicles?.times ?? [])]);
+    return [...set].sort((a, b) => a - b);
+  }, [traffic, vehicles, shelterStatus]);
   const playback = usePlayback(playTimes?.length ?? 0);
-  indexRef.current = playback.index;
+
+  // 재생 시각 이전의 마지막 소통정보 시점 (소통 색·링크 카드용)
+  const trafficIndex = useMemo(() => {
+    const now = playTimes?.[playback.index];
+    if (!traffic || now === undefined) return -1;
+    let ti = -1;
+    for (let i = 0; i < traffic.times.length && traffic.times[i] <= now; i++) ti = i;
+    return ti;
+  }, [traffic, playTimes, playback.index]);
+  indexRef.current = trafficIndex;
 
   const vehTimeIndex = useMemo(() => {
     const m = new Map<number, number>();
@@ -772,8 +787,8 @@ export default function App() {
 
   // ── 재생 인덱스 → 소통 색 갱신 ────────────────────────────────────────
   useEffect(() => {
-    painterRef.current?.apply(playback.index);
-  }, [playback.index]);
+    painterRef.current?.apply(trafficIndex);
+  }, [trafficIndex]);
 
   const vehicleOrigins = useMemo(() => listOriginOptions(vehInfo), [vehInfo]);
   // 행별 색은 차량·고른 출발지가 바뀔 때만 계산한다 (프레임마다 재계산하면 무겁다)
@@ -957,9 +972,9 @@ export default function App() {
     let speed: number | null = null;
     let fspeed: number | null = null;
     let vol: number | null = null;
-    if (li !== undefined) {
+    if (li !== undefined && trafficIndex >= 0) {
       const L = traffic.linkIds.length;
-      const sp = traffic.speeds[playback.index * L + li];
+      const sp = traffic.speeds[trafficIndex * L + li];
       const hi = traffic.hours.indexOf(Math.floor(timeSec / 3600));
       vol = hi >= 0 ? traffic.vols[hi * L + li] : 0;
       speed = sp === traffic.noData ? null : sp;

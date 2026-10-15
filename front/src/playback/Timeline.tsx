@@ -19,6 +19,14 @@ export function formatClock(sec: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+/** 시점 간 최소 간격 → "5분 간격" / "10초 간격" */
+function stepLabel(times: number[]): string {
+  let step = Infinity;
+  for (let i = 1; i < times.length; i++) step = Math.min(step, times[i] - times[i - 1]);
+  if (!Number.isFinite(step)) return '1개 시점';
+  return step % 60 === 0 ? `${step / 60}분 간격` : `${step}초 간격`;
+}
+
 export default function Timeline({
   times,
   index,
@@ -105,7 +113,7 @@ export default function Timeline({
       </div>
 
       <div className="mt-2 flex items-center justify-between border-t border-gray-100 pt-2 text-[11px] text-gray-500">
-        <span className="font-medium text-gray-600">5분 간격 · {formatClock(times[0] ?? 0)}–{formatClock(times[last] ?? 0)}</span>
+        <span className="font-medium text-gray-600">{stepLabel(times)} · {formatClock(times[0] ?? 0)}–{formatClock(times[last] ?? 0)}</span>
         <span className="tabular-nums">{info}</span>
       </div>
     </div>
